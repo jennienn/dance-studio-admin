@@ -1,0 +1,76 @@
+// src/app/api/internal/notifications/run/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { buildNotificationMessage, cycleStatus, type CycleLike } from "@/lib/business-rules";
+
+// Vercel Cron이 매일 호출. CRON_SECRET 환경변수를 설정해두면 Vercel이 자동으로
+// `Authorization: Bearer {CRON_SECRET}` 헤더를 붙여 GET 요청을 보낸다 (Vercel 공식 규약).
+export const dynamic = "force-dynamic";
+
+function toCycleLike(row: any): CycleLike {
+  return {
+    kind: row.enrollments.kind,
+    enrollmentStatus: row.enrollments.status,
+    cycleStatus: row.status,
+    plan: row.plan,
+    totalCount: row.total_count,
+    usedCount: row.used_count,
+    validEndDate: row.valid_end_date,
+    nextDueDate: row.next_due_date
+  };
+}
+
+// TODO: 실제 대행사(SOLAPI 등) 연동 전까지는 항상 성공 처리
+async function sendNotification(_phone: string, _message: string): Promise<"sent" | "failed"> {
+  return "sent";
+}
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "인증 실패" } }, { status: 401 });
+  }
+
+  const supabase = createSupabaseAdminClient();
+
+  // notify_status가 'pending' 또는 아직 판정 전인 'not_required'인 active cycle들을 훑는다.
+  // (cycleStatus()가 'danger'로 새로 바뀐 건들을 찾아 발송 대상으로 전환)
+  const { data, error } = await supabase
+    .from("enrollment_cycles")
+    .select("*, enrollments!inner(kind, status, class_id, classes(name), members(phone))")
+    .eq("status", "active")
+    .in("notify_status", ["not_required", "pending"]);
+
+  if (error) {
+    return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });
+  }
+
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const row of data ?? []) {
+    const like = toCycleLike(row);
+    const eligible = cycleStatus(like) === "danger";
+
+    if (!eligible) continue; // 아직 대상 아님 — not_required 유지
+
+    const message = buildNotificationMessage({ ...like, className: row.enrollments.classes?.name });
+    const result = await sendNotification(row.enrollments.members.phone, message);
+    result === "sent" ? sent++ : failed++;
+
+    await supabase
+      .from("enrollment_cycles")
+      .update({ notify_status: result, notify_date: new Date().toISOString() })
+      .eq("id", row.id);
+
+    await supabase.from("notifications").insert({
+      cycle_id: row.id,
+      status: result,
+      message,
+      trigger_type: "auto"
+    });
+  }
+
+  return NextResponse.json({ checked: data?.length ?? 0, sent, failed, skipped });
+}

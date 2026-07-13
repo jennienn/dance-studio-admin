@@ -5,16 +5,17 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // 잘못 기록한 회차의 날짜/메모를 수정 (완료 상태는 유지)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { cycleId: string; index: string } }
+  { params }: { params: Promise<{ cycleId: string; index: string }> }
 ) {
-  const supabase = createSupabaseServerClient();
+  const { cycleId, index } = await params;
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
-  const sessionIndex = Number(params.index);
+  const sessionIndex = Number(index);
 
   const { error } = await supabase
     .from("sessions")
     .update({ date: body.date, note: body.note ?? null })
-    .eq("cycle_id", params.cycleId)
+    .eq("cycle_id", cycleId)
     .eq("session_index", sessionIndex);
 
   if (error) {
@@ -35,13 +36,14 @@ export async function PATCH(
 // 기록 취소(되돌리기) — pending으로 되돌리고 잔여 회차를 복원
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { cycleId: string; index: string } }
+  { params }: { params: Promise<{ cycleId: string; index: string }> }
 ) {
-  const supabase = createSupabaseServerClient();
-  const sessionIndex = Number(params.index);
+  const { cycleId, index } = await params;
+  const supabase = await createSupabaseServerClient();
+  const sessionIndex = Number(index);
 
   const { data: newUsed, error: sessionError } = await supabase.rpc("delete_solo_session_atomic", {
-    p_cycle_id: params.cycleId,
+    p_cycle_id: cycleId,
     p_session_index: sessionIndex
   });
   if (sessionError) {

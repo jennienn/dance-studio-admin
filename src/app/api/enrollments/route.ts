@@ -18,7 +18,7 @@ function toCycleLike(cycleRow: any, enrollmentStatus: "active" | "ended"): Cycle
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status"); // 'unpaid' | 'unsent'
   const typeFilter = searchParams.get("type"); // 'solo' | 'group'
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
  * createEnrollmentWithCycle을 그대로 재사용한다.
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   const { memberId, ...enrollment } = body ?? {};
 

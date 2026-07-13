@@ -2,19 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("enrollment_cycles")
     .select("*, payments(*)")
-    .eq("enrollment_id", params.id)
+    .eq("enrollment_id", id)
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });
   return NextResponse.json({ cycles: data });
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   if (!body?.payment) {
     return NextResponse.json(
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const { data, error } = await supabase
     .rpc("renew_enrollment_atomic", {
-      p_enrollment_id: params.id,
+      p_enrollment_id: id,
       p_plan: body.plan ?? null,
       p_schedule_ids: Array.isArray(body.scheduleIds) ? body.scheduleIds : [],
       p_amount: body.payment.amount,
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   let notification: "sent" | "failed" | "none" = "none";
   if (body.sendNotification) {
     notification = "sent";
-    const { data: enrollment } = await supabase.from("enrollments").select("kind").eq("id", params.id).single();
+    const { data: enrollment } = await supabase.from("enrollments").select("kind").eq("id", id).single();
     const message =
       enrollment?.kind === "solo"
         ? `개인레슨 ${row.total_count}회로 재등록되었습니다.`

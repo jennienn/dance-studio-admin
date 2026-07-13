@@ -2,10 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createSupabaseServerClient();
+  const { id } = await params;
 
-  const { error } = await supabase.rpc("delete_attendance_atomic", { p_attendance_id: Number(params.id) });
+  const { error } = await supabase.rpc("delete_attendance_atomic", { p_attendance_id: Number(id) });
   if (error?.code === "P0002") {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "출석 기록을 찾을 수 없습니다." } }, { status: 404 });
   }

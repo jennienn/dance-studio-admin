@@ -5,7 +5,7 @@ import { cycleStatus, type CycleLike } from "@/lib/business-rules";
 
 // 반+날짜 기준으로 해당 반 소속 회원(active cycle) 목록과, 그날 이미 체크된 출석 여부를 함께 내려준다.
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { searchParams } = new URL(request.url);
   const className = searchParams.get("className");
   const date = searchParams.get("date");
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
  * (cycle_id, schedule_id, date) UNIQUE라서 같은 날 중복 출석은 DB가 자체적으로 막아준다.
  */
 export async function PUT(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   const { date, records } = body ?? {};
 

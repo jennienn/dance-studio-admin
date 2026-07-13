@@ -2,12 +2,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function GET(_request: NextRequest, { params }: { params: { cycleId: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ cycleId: string }> }) {
+  const { cycleId } = await params;
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("sessions")
     .select("*")
-    .eq("cycle_id", params.cycleId)
+    .eq("cycle_id", cycleId)
     .order("session_index");
   if (error) {
     return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });
@@ -15,8 +16,9 @@ export async function GET(_request: NextRequest, { params }: { params: { cycleId
   return NextResponse.json({ sessions: data });
 }
 
-export async function POST(request: NextRequest, { params }: { params: { cycleId: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function POST(request: NextRequest, { params }: { params: Promise<{ cycleId: string }> }) {
+  const { cycleId } = await params;
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   const { sessionIndex, date, expired, note } = body ?? {};
 
@@ -28,7 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: { cycleId
   }
 
   const { data: usedCount, error: sessionError } = await supabase.rpc("record_solo_session_atomic", {
-    p_cycle_id: params.cycleId,
+    p_cycle_id: cycleId,
     p_session_index: sessionIndex,
     p_date: date,
     p_expired: Boolean(expired),

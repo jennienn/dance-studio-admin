@@ -2,14 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("members")
     .select(
       "id, name, phone, enrollments(*, classes(name), enrollment_cycles(*, payments(*), cycle_schedules(schedule_id), attendance_logs(date, attended)))"
     )
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error) {
@@ -18,8 +19,9 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   return NextResponse.json(data);
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   const { name, phone } = body ?? {};
 
@@ -30,7 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     );
   }
 
-  const { error } = await supabase.from("members").update({ name, phone }).eq("id", params.id);
+  const { error } = await supabase.from("members").update({ name, phone }).eq("id", id);
   if (error) {
     return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });
   }

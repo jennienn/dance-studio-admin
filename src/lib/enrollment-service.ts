@@ -1,6 +1,6 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server";
 
-type Supabase = ReturnType<typeof createSupabaseServerClient>;
+type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 export interface EnrollmentCreationInput {
   kind: "solo" | "group";

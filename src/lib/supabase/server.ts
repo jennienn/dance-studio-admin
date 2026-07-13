@@ -7,8 +7,8 @@ import { cookies } from "next/headers";
  * 로그인한 운영자의 쿠키 세션을 그대로 사용하므로, RLS 정책(authenticated_full_access)이
  * 자동으로 적용된다 — 별도의 인증 미들웨어를 API마다 새로 작성할 필요가 없다.
  */
-export function createSupabaseServerClient() {
-  const cookieStore = cookies();
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

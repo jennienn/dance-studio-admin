@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
 
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
   const kind = searchParams.get("kind"); // 'solo' | 'group'
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
  * 개인레슨의 valid_end_date는 여기서 확정하지 않는다 — 첫 수업 기록 시점에 확정된다.
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   const { name, phone, enrollment } = body ?? {};
 

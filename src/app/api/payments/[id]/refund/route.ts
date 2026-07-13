@@ -11,8 +11,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * - 사용한 회차만큼 차감한 부분 환불 금액을 시스템이 자동 계산해줄지, 운영자가 직접 입력할지
  * 지금은 payments 테이블에 환불 금액/상태만 기록하고, cycle 상태는 건드리지 않는다.
  */
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const supabase = createSupabaseServerClient();
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
   const body = await request.json();
   const { amount, note } = body ?? {};
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const { data: payment, error: fetchError } = await supabase
     .from("payments")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
   if (fetchError || !payment) {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "결제 내역을 찾을 수 없습니다." } }, { status: 404 });
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const { error } = await supabase
     .from("payments")
     .update({ status, refunded_amount: amount, note: note ?? payment.note })
-    .eq("id", params.id);
+    .eq("id", id);
   if (error) {
     return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });
   }

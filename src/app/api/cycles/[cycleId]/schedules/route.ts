@@ -8,18 +8,22 @@ export async function POST(request: NextRequest, { params }: { params: { cycleId
   const body = await request.json();
   const scheduleIds: number[] = body.scheduleIds ?? [];
 
-  await supabase.from("cycle_schedules").delete().eq("cycle_id", params.cycleId);
-
-  if (scheduleIds.length) {
-    const rows = scheduleIds.map((scheduleId) => ({ cycle_id: params.cycleId, schedule_id: scheduleId }));
-    const { error } = await supabase.from("cycle_schedules").insert(rows);
-    if (error) {
-      const isCapacity = error.message.includes("CLASS_CAPACITY_EXCEEDED");
-      return NextResponse.json(
-        { error: { code: isCapacity ? "CLASS_CAPACITY_EXCEEDED" : "DB_ERROR", message: error.message } },
-        { status: isCapacity ? 409 : 500 }
-      );
-    }
+  const { error } = await supabase.rpc("replace_cycle_schedules_atomic", {
+    p_cycle_id: params.cycleId,
+    p_schedule_ids: scheduleIds
+  });
+  if (error) {
+    const isCapacity = error.message.includes("CLASS_CAPACITY_EXCEEDED");
+    const isValidation = error.message.includes("VALIDATION_ERROR") || error.code === "22023";
+    return NextResponse.json(
+      {
+        error: {
+          code: isCapacity ? "CLASS_CAPACITY_EXCEEDED" : isValidation ? "VALIDATION_ERROR" : "DB_ERROR",
+          message: error.message
+        }
+      },
+      { status: isCapacity ? 409 : isValidation ? 422 : 500 }
+    );
   }
 
   return NextResponse.json({ ok: true });

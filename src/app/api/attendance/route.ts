@@ -79,50 +79,16 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  let processed = 0;
-
-  for (const record of records) {
-    const { data: existing } = await supabase
-      .from("attendance_logs")
-      .select("id")
-      .eq("cycle_id", record.cycleId)
-      .eq("schedule_id", record.scheduleId)
-      .eq("date", date)
-      .maybeSingle();
-
-    if (record.attended && !existing) {
-      const { error: insertError } = await supabase.from("attendance_logs").insert({
-        cycle_id: record.cycleId,
-        schedule_id: record.scheduleId,
-        date,
-        attended: true
-      });
-      if (insertError) continue; // UNIQUE 충돌 등은 건너뜀 (이미 기록된 것으로 간주)
-
-      const { data: cycle } = await supabase
-        .from("enrollment_cycles")
-        .select("used_count")
-        .eq("id", record.cycleId)
-        .single();
-      await supabase
-        .from("enrollment_cycles")
-        .update({ used_count: (cycle?.used_count ?? 0) + 1 })
-        .eq("id", record.cycleId);
-      processed++;
-    } else if (!record.attended && existing) {
-      await supabase.from("attendance_logs").delete().eq("id", existing.id);
-      const { data: cycle } = await supabase
-        .from("enrollment_cycles")
-        .select("used_count")
-        .eq("id", record.cycleId)
-        .single();
-      await supabase
-        .from("enrollment_cycles")
-        .update({ used_count: Math.max(0, (cycle?.used_count ?? 1) - 1) })
-        .eq("id", record.cycleId);
-      processed++;
-    }
+  const { data: processed, error } = await supabase.rpc("save_attendance_atomic", {
+    p_date: date,
+    p_records: records
+  });
+  if (error) {
+    const isValidation = error.code === "22023" || error.message.includes("VALIDATION_ERROR");
+    return NextResponse.json(
+      { error: { code: isValidation ? "VALIDATION_ERROR" : "DB_ERROR", message: error.message } },
+      { status: isValidation ? 422 : 500 }
+    );
   }
-
   return NextResponse.json({ processedCount: processed });
 }

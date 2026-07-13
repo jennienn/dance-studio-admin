@@ -1,7 +1,7 @@
 // src/app/api/members/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createEnrollmentWithCycle } from "@/lib/enrollment-service";
+import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
 
 export async function GET(request: NextRequest) {
   const supabase = createSupabaseServerClient();
@@ -61,29 +61,34 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: member, error: memberError } = await supabase
-    .from("members")
-    .insert({ name, phone })
-    .select()
-    .single();
-  if (memberError) {
-    return NextResponse.json({ error: { code: "DB_ERROR", message: memberError.message } }, { status: 500 });
-  }
-
-  let enrollmentId: string | null = null;
-  let cycleId: string | null = null;
-
-  if (enrollment) {
-    const result = await createEnrollmentWithCycle(supabase, member.id, enrollment);
-    if (!result.ok) {
-      return NextResponse.json({ error: { code: result.code, message: result.message } }, { status: result.status });
+  if (!enrollment) {
+    const { data: member, error } = await supabase.from("members").insert({ name, phone }).select("id").single();
+    if (error || !member) {
+      return NextResponse.json({ error: { code: "DB_ERROR", message: error?.message ?? "회원 생성 실패" } }, { status: 500 });
     }
-    enrollmentId = result.enrollmentId;
-    cycleId = result.cycleId;
-
-    // TODO: enrollment.sendNotification === true 인 경우 알림톡 발송 (실연동 전까지는 등록 알림은 생략,
-    // 결제필요/재등록 알림톡만 자동발송 대상이라는 점을 요구사항명세서에서 재확인할 것)
+    return NextResponse.json({ memberId: member.id, enrollmentId: null, cycleId: null }, { status: 201 });
   }
 
-  return NextResponse.json({ memberId: member.id, enrollmentId, cycleId }, { status: 201 });
+  const { data, error } = await supabase
+    .rpc("create_member_with_enrollment_atomic", {
+      p_name: name,
+      p_phone: phone,
+      p_kind: enrollment.kind,
+      p_plan: enrollment.kind === "solo" ? enrollment.plan ?? null : null,
+      p_class_name: enrollment.kind === "group" ? enrollment.className ?? null : null,
+      p_schedule_ids: enrollment.kind === "group" ? enrollment.scheduleIds ?? [] : [],
+      p_amount: enrollment.payment.amount,
+      p_method: enrollment.payment.method,
+      p_payment_date: enrollment.payment.paymentDate
+    })
+    .single();
+  if (error || !data) {
+    const failure = mapEnrollmentRpcError(error ?? { message: "DB_ERROR: 생성 결과가 없습니다." });
+    return NextResponse.json({ error: { code: failure.code, message: failure.message } }, { status: failure.status });
+  }
+  const row = data as { member_id: number; enrollment_id: string; cycle_id: string };
+  return NextResponse.json(
+    { memberId: row.member_id, enrollmentId: row.enrollment_id, cycleId: row.cycle_id },
+    { status: 201 }
+  );
 }

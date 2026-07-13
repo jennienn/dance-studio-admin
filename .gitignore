@@ -2,7 +2,20 @@ node_modules
 .next
 .env.local
 .env*.local
+test-artifacts/
+playwright-report/
+test-results/
 npm-debug.log*
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# Local environment files
+.env.local
+.env.local.backup
+.env.test.local
+
+# Test-generated artifacts
+test-artifacts/
+playwright-report/
+test-results/

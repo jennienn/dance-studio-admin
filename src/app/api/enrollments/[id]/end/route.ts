@@ -1,12 +1,13 @@
 // src/app/api/enrollments/[id]/end/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { koreaDateString } from "@/lib/business-rules";
 
 // 삭제(DELETE)가 아니라 항상 종료 처리만 한다 — 기록 보존 원칙
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
   const body = await request.json().catch(() => ({}));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = koreaDateString();
 
   const { error } = await supabase
     .from("enrollments")

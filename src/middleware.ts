@@ -36,6 +36,12 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = request.nextUrl.pathname === "/login";
 
   if (!user && !isLoginPage) {
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다." } },
+        { status: 401 }
+      );
+    }
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }

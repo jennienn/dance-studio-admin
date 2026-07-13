@@ -71,4 +71,29 @@ npm run dev
 3. Vercel 프로젝트 환경변수에 `.env.local`과 동일한 값 + `CRON_SECRET` 등록
 4. 배포 후 Vercel 프로젝트 설정 → Cron Jobs에서 `/api/internal/notifications/run`이 매일 등록되어 있는지 확인
 
+## 자동 테스트
+
+단위 테스트는 Supabase 없이 실행할 수 있습니다.
+
+```bash
+npm run test
+```
+
+통합/E2E/seed는 운영 프로젝트와 완전히 분리된 Supabase 프로젝트만 사용합니다. 먼저
+`.env.test.local.example`을 `.env.test.local`로 복사하고 전용 테스트 프로젝트 값과 테스트 운영자 계정을
+입력한 뒤, `supabase/migrations/0001_init.sql`과 `0002_atomic_testable_operations.sql`을 순서대로 적용합니다.
+테스트 스크립트는 URL의 project ref와 `TEST_SUPABASE_PROJECT_REF`가 정확히 같지 않거나 URL/ref에
+`prod` 또는 `production`이 포함되면 실행을 중단합니다. `.env.local`은 테스트에서 읽지 않습니다.
+
+```bash
+npm run test:seed
+npm run test:integration
+npm run test:e2e
+npm run test:cleanup
+```
+
+seed가 만든 모든 행은 `test-artifacts/seed-manifest-{runId}.json`에 즉시 기록됩니다. cleanup은 최신
+manifest만 대상으로 하며, 특정 실행을 정리할 때는 `npm run test:cleanup -- {runId}`를 사용합니다.
+manifest에 없는 행은 삭제하지 않습니다.
+
 자세한 배경(기술스택 선정 이유, 예상 비용 등)은 함께 전달받은 01~05번 문서를 참고하세요.

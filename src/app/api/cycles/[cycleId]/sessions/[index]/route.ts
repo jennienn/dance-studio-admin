@@ -40,25 +40,13 @@ export async function DELETE(
   const supabase = createSupabaseServerClient();
   const sessionIndex = Number(params.index);
 
-  const { error: sessionError } = await supabase
-    .from("sessions")
-    .update({ date: null, status: "pending", note: null })
-    .eq("cycle_id", params.cycleId)
-    .eq("session_index", sessionIndex);
+  const { data: newUsed, error: sessionError } = await supabase.rpc("delete_solo_session_atomic", {
+    p_cycle_id: params.cycleId,
+    p_session_index: sessionIndex
+  });
   if (sessionError) {
     return NextResponse.json({ error: { code: "DB_ERROR", message: sessionError.message } }, { status: 500 });
   }
 
-  const { data: cycle } = await supabase.from("enrollment_cycles").select("*").eq("id", params.cycleId).single();
-  const newUsed = Math.max(0, (cycle?.used_count ?? 1) - 1);
-  const update: Record<string, unknown> = { used_count: newUsed };
-
-  // 취소한 결과 이 주기에 완료된 회차가 하나도 없으면, 첫 수업일/유효기간도 다시 미확정 상태로 되돌린다
-  if (newUsed === 0) {
-    update.first_class_date = null;
-    update.valid_end_date = null;
-  }
-
-  await supabase.from("enrollment_cycles").update(update).eq("id", params.cycleId);
   return NextResponse.json({ usedCount: newUsed });
 }

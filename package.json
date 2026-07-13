@@ -7,19 +7,33 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "TEST_MODE=true vitest run --config vitest.integration.config.ts",
+    "test:e2e": "TEST_MODE=true playwright test",
+    "test:seed": "TEST_MODE=true tsx scripts/test-seed.ts",
+    "test:cleanup": "TEST_MODE=true tsx scripts/test-cleanup.ts",
+    "test:all": "npm run test && npm run test:integration && npm run test:e2e"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.45.4",
+    "@supabase/supabase-js": "2.45.4",
     "next": "^14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.49.1",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.3"
+    "dotenv": "16.4.7",
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.35",
+    "supabase": "2.109.1",
+    "tsx": "4.19.2",
+    "typescript": "^5.5.3",
+    "vitest": "2.1.9"
   }
 }

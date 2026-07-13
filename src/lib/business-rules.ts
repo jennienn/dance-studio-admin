@@ -30,6 +30,37 @@ export const WEEKS_BY_PLAN: Record<4 | 8 | 12, number> = {
 export const GROUP_RENEWAL_WEEKS = 5;
 export const GROUP_FIXED_COUNT = 8;
 
+const KOREA_TIME_ZONE = "Asia/Seoul";
+
+/** Date를 한국 달력 날짜(YYYY-MM-DD)로 변환한다. UTC ISO 문자열의 날짜 절단을 사용하지 않는다. */
+export function koreaDateString(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: KOREA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const value = (type: "year" | "month" | "day") => parts.find((part) => part.type === type)?.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+function parseCalendarDate(value: string | Date): { year: number; month: number; day: number } {
+  if (typeof value !== "string") {
+    const [year, month, day] = koreaDateString(value).split("-").map(Number);
+    return { year, month, day };
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) throw new Error(`올바르지 않은 날짜: ${value}`);
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
+/** 시간대/DST와 무관한 달력 날짜 덧셈. */
+export function addCalendarDays(value: string | Date, days: number): string {
+  const { year, month, day } = parseCalendarDate(value);
+  const result = new Date(Date.UTC(year, month - 1, day + days));
+  return result.toISOString().slice(0, 10);
+}
+
 export function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -41,11 +72,12 @@ export function addWeeks(date: Date, weeks: number): Date {
 }
 
 export function daysUntil(target: string | Date, today: Date = new Date()): number {
-  const t = typeof target === "string" ? new Date(target) : target;
+  const t = parseCalendarDate(target);
+  const a = parseCalendarDate(today);
   const msPerDay = 1000 * 60 * 60 * 24;
-  const a = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const b = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-  return Math.round((b.getTime() - a.getTime()) / msPerDay);
+  const aTime = Date.UTC(a.year, a.month - 1, a.day);
+  const bTime = Date.UTC(t.year, t.month - 1, t.day);
+  return Math.round((bTime - aTime) / msPerDay);
 }
 
 export function remainOf(c: Pick<CycleLike, "totalCount" | "usedCount">): number {
@@ -113,12 +145,24 @@ export function groupStatusText(c: CycleLike, today: Date = new Date()): StatusT
  * 등록/재등록 시점이 아니라, 실제 1회차 수업 날짜가 기록되는 순간 호출해야 한다.
  */
 export function calcSoloValidEnd(firstClassDate: Date, plan: 4 | 8 | 12): Date {
-  return addWeeks(firstClassDate, WEEKS_BY_PLAN[plan]);
+  return new Date(`${addCalendarDays(firstClassDate, WEEKS_BY_PLAN[plan] * 7)}T00:00:00.000Z`);
 }
 
 /** 단체레슨 결제 시 다음 결제 예정일 계산 */
 export function calcGroupNextDue(paymentDate: Date): Date {
-  return addWeeks(paymentDate, GROUP_RENEWAL_WEEKS);
+  return new Date(`${addCalendarDays(paymentDate, GROUP_RENEWAL_WEEKS * 7)}T00:00:00.000Z`);
+}
+
+export function countDistinctMembers(memberIds: ReadonlyArray<string | number>): number {
+  return new Set(memberIds).size;
+}
+
+export function canAddMemberToClass(
+  existingMemberIds: ReadonlyArray<string | number>,
+  candidateMemberId: string | number,
+  capacity = 10
+): boolean {
+  return countDistinctMembers([...existingMemberIds, candidateMemberId]) <= capacity;
 }
 
 /** 알림톡 문구 템플릿 — 카카오 템플릿 심사 등록 시 이 문구를 그대로 사용할 것 */

@@ -1,7 +1,7 @@
 // src/app/(app)/attendance/page.tsx
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 
 interface ClassItem {
@@ -29,6 +29,7 @@ interface AttendanceItem {
 }
 
 export default function AttendancePage() {
+  const loadRequestId = useRef(0);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [className, setClassName] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -46,7 +47,7 @@ export default function AttendancePage() {
     apiFetch<{ classes: ClassItem[] }>("/api/classes")
       .then((res) => {
         setClasses(res.classes);
-        if (res.classes.length > 0) setClassName(res.classes[0].name);
+        if (res.classes.length > 0) setClassName((current) => current || res.classes[0].name);
       })
       .catch(() => setClasses([]));
   }, []);
@@ -59,6 +60,7 @@ export default function AttendancePage() {
 
   const load = useCallback(async () => {
     if (!className) return;
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setError(null);
     try {
@@ -68,6 +70,7 @@ export default function AttendancePage() {
       const schedulesRes = cls
         ? await apiFetch<{ schedules: ClassSchedule[] }>(`/api/classes/${cls.id}/schedules`)
         : { schedules: [] };
+      if (requestId !== loadRequestId.current) return;
       const matched = schedulesRes.schedules.find((s) => s.weekday === weekday) ?? null;
       setTodaySchedule(matched);
 
@@ -80,13 +83,15 @@ export default function AttendancePage() {
       const res = await apiFetch<{ items: AttendanceItem[] }>(
         `/api/attendance?className=${encodeURIComponent(className)}&date=${date}`
       );
+      if (requestId !== loadRequestId.current) return;
       const filtered = res.items.filter((i) => i.scheduleIds.includes(matched.id));
       setItems(filtered);
       setChecked(new Set(filtered.filter((i) => i.attended).map((i) => i.cycleId)));
-    } catch (e: any) {
-      setError(e.message ?? "목록을 불러오지 못했습니다.");
+    } catch (e: unknown) {
+      if (requestId !== loadRequestId.current) return;
+      setError(e instanceof Error ? e.message : "목록을 불러오지 못했습니다.");
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   }, [className, date, classes]);
 

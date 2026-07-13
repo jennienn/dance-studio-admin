@@ -3,18 +3,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
 
+// 활성 수강권(enrollment.status='active')이 하나도 없는 회원 id 목록.
+// PostgREST 임베드 필터는 "하나라도 일치하는 회원"만 걸러낼 수 있고 "전부 불일치"는 표현할 수 없어서,
+// 탈퇴 회원(활성 enrollment 0건) 판정은 별도 조회로 활성 회원 id를 먼저 뽑아 제외하는 방식으로 처리한다.
+async function fetchActiveMemberIds(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>) {
+  const { data, error } = await supabase.from("enrollments").select("member_id").eq("status", "active");
+  if (error) return { error };
+  return { ids: Array.from(new Set((data ?? []).map((row) => row.member_id))) };
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
   const kind = searchParams.get("kind"); // 'solo' | 'group'
+  const statusFilter = searchParams.get("status") === "withdrawn" ? "withdrawn" : "active"; // 'active' | 'withdrawn'
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Number(searchParams.get("pageSize") ?? "10");
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
   const isKindFilter = kind === "solo" || kind === "group";
-  const enrollmentsSelect = isKindFilter
+  // enrollments 임베드에 걸리는 .eq() 필터는 !inner를 써야 "일치하는 enrollment가 없는 회원"이
+  // 최상위 결과에서도 제외된다 (!inner 없이는 nested 배열만 걸러지고 회원 자체는 그대로 남는다).
+  const needsInnerJoin = isKindFilter || statusFilter === "active";
+  const enrollmentsSelect = needsInnerJoin
     ? "enrollments!inner(id, kind, status, class_id, classes(name), enrollment_cycles(*))"
     : "enrollments(id, kind, status, class_id, classes(name), enrollment_cycles(*))";
 
@@ -29,6 +42,18 @@ export async function GET(request: NextRequest) {
   }
   if (isKindFilter) {
     query = query.eq("enrollments.kind", kind);
+  }
+
+  if (statusFilter === "active") {
+    query = query.eq("enrollments.status", "active");
+  } else {
+    const activeIds = await fetchActiveMemberIds(supabase);
+    if (activeIds.error) {
+      return NextResponse.json({ error: { code: "DB_ERROR", message: activeIds.error.message } }, { status: 500 });
+    }
+    if (activeIds.ids.length > 0) {
+      query = query.not("id", "in", `(${activeIds.ids.join(",")})`);
+    }
   }
 
   const { data, error, count } = await query;

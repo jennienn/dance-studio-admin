@@ -42,6 +42,18 @@ const NAV_ITEMS = [
     )
   },
   {
+    href: "/members/withdrawn",
+    label: "탈퇴 회원",
+    ready: true,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="8" r="3" />
+        <path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6" />
+        <path d="M15 5l6 6M21 5l-6 6" />
+      </svg>
+    )
+  },
+  {
     href: "/attendance",
     label: "단체 출석",
     ready: true,

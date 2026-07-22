@@ -83,7 +83,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <Image src="/logo.jpg" alt="" width={33} height={30} className="brand-logo" />
+        <Image src="/logo.png" alt="Élanor Dance Academy 로고" width={33} height={30} className="brand-logo" />
         <span className="brand-text">Élanor Dance Academy</span>
       </div>
       {NAV_ITEMS.map((item) => {

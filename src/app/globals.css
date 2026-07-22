@@ -441,6 +441,123 @@ input::placeholder {
   margin: 0;
 }
 
+.enrollment-primary {
+  margin-top: 20px;
+}
+.enrollment-primary-label {
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 6px;
+}
+.validity-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.validity-date,
+.validity-pending {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0;
+}
+.validity-date {
+  font-family: var(--font-mono);
+}
+.expiry-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+.expiry-chip.warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.expiry-chip.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.session-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+.session-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--ring);
+}
+.session-summary-item span {
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 500;
+}
+.session-summary-item strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+.group-billing-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: var(--ring);
+}
+.group-billing-date {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0;
+}
+.group-billing-status {
+  margin-left: 6px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+}
+.group-secondary-info {
+  color: var(--text-sub);
+  font-size: 13px;
+  margin: 12px 0 0;
+}
+.group-secondary-info > span:first-of-type {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.group-info-divider {
+  margin: 0 6px;
+}
+
+@media (max-width: 640px) {
+  .session-summary,
+  .group-billing-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
 .record-list {
   list-style: none;
   margin: 0;

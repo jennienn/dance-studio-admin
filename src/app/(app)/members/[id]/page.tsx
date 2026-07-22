@@ -11,7 +11,7 @@ import { AddSessionModal } from "@/components/AddSessionModal";
 import { EditGroupScheduleModal } from "@/components/EditGroupScheduleModal";
 import { RenewSoloModal } from "@/components/RenewSoloModal";
 import { RenewGroupModal } from "@/components/RenewGroupModal";
-import { soloStatusText, groupStatusText, type CycleLike } from "@/lib/business-rules";
+import { daysUntil, groupStatusText, type CycleLike } from "@/lib/business-rules";
 
 interface Payment {
   id: number;
@@ -94,6 +94,19 @@ function NotiBadge({ status }: { status: Cycle["notify_status"] }) {
   return <span className="noti none">-</span>;
 }
 
+function formatCalendarDate(value: string): string {
+  return value.replaceAll("-", ".");
+}
+
+function ExpiryChip({ validEndDate }: { validEndDate: string | null }) {
+  if (!validEndDate) return null;
+  const remainingDays = daysUntil(validEndDate);
+  if (remainingDays < 0) return <span className="expiry-chip danger">만료</span>;
+  if (remainingDays === 0) return <span className="expiry-chip warning">오늘 만료</span>;
+  if (remainingDays <= 7) return <span className="expiry-chip warning">D-{remainingDays}</span>;
+  return null;
+}
+
 function SoloEnrollmentCard({
   enrollment,
   cycle,
@@ -131,9 +144,6 @@ function SoloEnrollmentCard({
     }
   }
 
-  const status = soloStatusText(toCycleLike(enrollment, cycle));
-  const toneColor =
-    status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--success)";
   const remain = cycle.total_count - cycle.used_count;
   const recorded = sessions
     .filter((s) => s.status !== "pending")
@@ -150,16 +160,39 @@ function SoloEnrollmentCard({
               종료됨
             </span>
           )}
-          <p style={{ margin: "10px 0 0", fontSize: 13 }}>
-            잔여 <strong>{remain}</strong>/{cycle.total_count}회 ·{" "}
-            <span style={{ color: toneColor, fontWeight: 500 }}>
-              유효기간 {cycle.valid_end_date ?? "첫 수업 전"}
-            </span>
-          </p>
         </div>
         {enrollment.status === "active" && (
           <CardMenu items={[{ label: "수강 종료", danger: true, onClick: onEnd }]} />
         )}
+      </div>
+
+      <div className="enrollment-primary">
+        <p className="enrollment-primary-label">유효기간</p>
+        {cycle.first_class_date && cycle.valid_end_date ? (
+          <div className="validity-line">
+            <p className="validity-date">
+              {formatCalendarDate(cycle.first_class_date)} ~ {formatCalendarDate(cycle.valid_end_date)}
+            </p>
+            <ExpiryChip validEndDate={cycle.valid_end_date} />
+          </div>
+        ) : (
+          <p className="validity-pending">첫 수업 등록 후 확정</p>
+        )}
+
+        <div className="session-summary">
+          <div className="session-summary-item">
+            <span>남은 회차</span>
+            <strong>{remain}회</strong>
+          </div>
+          <div className="session-summary-item">
+            <span>사용 회차</span>
+            <strong>{cycle.used_count}회</strong>
+          </div>
+          <div className="session-summary-item">
+            <span>총 회차</span>
+            <strong>{cycle.total_count}회</strong>
+          </div>
+        </div>
       </div>
 
       <div className="info-grid" style={{ marginTop: 14 }}>
@@ -253,15 +286,6 @@ function GroupEnrollmentCard({
               종료됨
             </span>
           )}
-          <p style={{ margin: "10px 0 0", fontSize: 13 }}>
-            다음 결제 예정일{" "}
-            <strong style={{ color: toneColor }}>
-              {cycle.next_due_date ?? "-"} ({status.text})
-            </strong>
-          </p>
-          <p style={{ margin: "6px 0 0", fontSize: 13 }}>
-            알림톡 <NotiBadge status={cycle.notify_status} />
-          </p>
         </div>
         {enrollment.status === "active" && (
           <CardMenu
@@ -273,16 +297,25 @@ function GroupEnrollmentCard({
         )}
       </div>
 
-      <div className="info-grid" style={{ marginTop: 14 }}>
-        <div className="info-box">
-          <p className="info-label">최근 출석일</p>
-          <p className="info-value">{lastAttendance ?? "-"}</p>
+      <div className="group-billing-summary">
+        <div>
+          <p className="enrollment-primary-label">결제일</p>
+          <p className="group-billing-date">{formatCalendarDate(cycle.payment_date)}</p>
         </div>
-        <div className="info-box">
-          <p className="info-label">마지막 결제일</p>
-          <p className="info-value">{cycle.payment_date}</p>
+        <div>
+          <p className="enrollment-primary-label">다음 결제 예정일</p>
+          <p className="group-billing-date" style={{ color: toneColor }}>
+            {cycle.next_due_date ? formatCalendarDate(cycle.next_due_date) : "-"}
+            <span className="group-billing-status">{status.text}</span>
+          </p>
         </div>
       </div>
+
+      <p className="group-secondary-info">
+        최근 출석일 <span>{lastAttendance ? formatCalendarDate(lastAttendance) : "-"}</span>
+        <span className="group-info-divider">·</span>
+        알림톡 <NotiBadge status={cycle.notify_status} />
+      </p>
 
       <div style={{ marginTop: 16 }}>
         <button style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={onRenew}>

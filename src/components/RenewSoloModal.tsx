@@ -31,8 +31,16 @@ export function RenewSoloModal({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!plan || !amount) {
-      setError("이용권과 결제 금액을 입력해주세요.");
+    if (!plan) {
+      setError("이용권을 선택해주세요.");
+      return;
+    }
+    if (!amount.trim()) {
+      setError("결제 금액을 입력해주세요.");
+      return;
+    }
+    if (!paymentDate) {
+      setError("결제일을 입력해주세요.");
       return;
     }
     setSubmitting(true);
@@ -59,7 +67,9 @@ export function RenewSoloModal({
     <Modal open={open} onClose={onClose} title={memberName}>
       <p style={{ fontSize: 13, color: "var(--text-sub)", margin: 0 }}>현재 잔여 {currentRemain}회</p>
 
-      <label style={labelStyle}>새 이용권</label>
+      <label style={labelStyle}>
+        새 이용권 <span style={requiredStyle}>*</span>
+      </label>
       <div style={{ display: "flex", gap: 8 }}>
         {PLANS.map((p) => (
           <button
@@ -80,8 +90,10 @@ export function RenewSoloModal({
         </p>
       )}
 
-      <label style={labelStyle}>결제 금액</label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="370000" style={inputStyle} />
+      <label style={labelStyle}>
+        결제 금액 <span style={requiredStyle}>*</span>
+      </label>
+      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="금액을 입력하세요" style={inputStyle} />
 
       <label style={labelStyle}>결제 수단</label>
       <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} style={inputStyle}>
@@ -90,7 +102,9 @@ export function RenewSoloModal({
         <option value="cash">현금</option>
       </select>
 
-      <label style={labelStyle}>결제일</label>
+      <label style={labelStyle}>
+        결제일 <span style={requiredStyle}>*</span>
+      </label>
       <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13 }}>
@@ -118,4 +132,5 @@ export function RenewSoloModal({
 }
 
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, color: "var(--text-sub)", margin: "12px 0 4px" };
+const requiredStyle: React.CSSProperties = { color: "var(--danger)" };
 const inputStyle: React.CSSProperties = { width: "100%" };

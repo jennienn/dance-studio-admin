@@ -71,8 +71,12 @@ export function NewMemberModal({
   }
 
   async function handleSubmit() {
-    if (!name.trim() || !phone.trim()) {
-      setError("이름과 연락처를 입력해주세요.");
+    if (!name.trim()) {
+      setError("이름을 입력해주세요.");
+      return;
+    }
+    if (!phone.trim()) {
+      setError("연락처를 입력해주세요.");
       return;
     }
     if (kind === "solo" && !plan) {
@@ -87,8 +91,12 @@ export function NewMemberModal({
       setError("요일을 하나 이상 선택해주세요.");
       return;
     }
-    if (!amount || !paymentDate) {
-      setError("결제 금액과 결제일을 입력해주세요.");
+    if (!amount.trim()) {
+      setError("결제 금액을 입력해주세요.");
+      return;
+    }
+    if (!paymentDate) {
+      setError("결제일을 입력해주세요.");
       return;
     }
 
@@ -120,10 +128,14 @@ export function NewMemberModal({
 
   return (
     <Modal open={open} onClose={onClose} title="회원 등록">
-      <label style={labelStyle}>이름</label>
+      <label style={labelStyle}>
+        이름 <span style={requiredStyle}>*</span>
+      </label>
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="홍길동" style={inputStyle} />
 
-      <label style={labelStyle}>연락처</label>
+      <label style={labelStyle}>
+        연락처 <span style={requiredStyle}>*</span>
+      </label>
       <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-1234-5678" style={inputStyle} />
 
       <label style={labelStyle}>수강 종류</label>
@@ -148,7 +160,9 @@ export function NewMemberModal({
 
       {kind === "solo" ? (
         <>
-          <label style={labelStyle}>회차</label>
+          <label style={labelStyle}>
+            회차 <span style={requiredStyle}>*</span>
+          </label>
           <div style={{ display: "flex", gap: 8 }}>
             {SOLO_PLANS.map((p) => (
               <button
@@ -165,7 +179,9 @@ export function NewMemberModal({
         </>
       ) : (
         <>
-          <label style={labelStyle}>반</label>
+          <label style={labelStyle}>
+            반 <span style={requiredStyle}>*</span>
+          </label>
           <select
             value={classId ?? ""}
             onChange={(e) => setClassId(e.target.value ? Number(e.target.value) : null)}
@@ -181,7 +197,9 @@ export function NewMemberModal({
 
           {classId && (
             <>
-              <label style={labelStyle}>요일</label>
+              <label style={labelStyle}>
+                요일 <span style={requiredStyle}>*</span>
+              </label>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {schedules.map((s) => (
                   <button
@@ -203,8 +221,10 @@ export function NewMemberModal({
         </>
       )}
 
-      <label style={labelStyle}>결제 금액</label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="370000" style={inputStyle} />
+      <label style={labelStyle}>
+        결제 금액 <span style={requiredStyle}>*</span>
+      </label>
+      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="금액을 입력하세요" style={inputStyle} />
 
       <label style={labelStyle}>결제 수단</label>
       <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} style={inputStyle}>
@@ -213,7 +233,9 @@ export function NewMemberModal({
         <option value="cash">현금</option>
       </select>
 
-      <label style={labelStyle}>결제일</label>
+      <label style={labelStyle}>
+        결제일 <span style={requiredStyle}>*</span>
+      </label>
       <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13 }}>
@@ -233,7 +255,7 @@ export function NewMemberModal({
           취소
         </button>
         <button style={{ flex: 1 }} onClick={handleSubmit} disabled={submitting}>
-          {submitting ? "등록 중..." : "회원 등록"}
+          {submitting ? "등록 중..." : "등록 완료"}
         </button>
       </div>
     </Modal>
@@ -241,4 +263,5 @@ export function NewMemberModal({
 }
 
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, color: "var(--text-sub)", margin: "14px 0 4px" };
+const requiredStyle: React.CSSProperties = { color: "var(--danger)" };
 const inputStyle: React.CSSProperties = { width: "100%" };

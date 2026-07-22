@@ -1,6 +1,7 @@
 // src/components/Sidebar.tsx
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -81,7 +82,10 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="brand">댄스학원 관리</div>
+      <div className="brand">
+        <Image src="/logo.jpg" alt="" width={33} height={30} className="brand-logo" />
+        <span className="brand-text">Élanor Dance Academy</span>
+      </div>
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
         if (!item.ready) {

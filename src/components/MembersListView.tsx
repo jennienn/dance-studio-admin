@@ -69,6 +69,12 @@ function CurrentEnrollmentCell({ member }: { member: MemberItem }) {
   return <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>;
 }
 
+function toneBadgeClass(tone: "danger" | "warning" | "muted") {
+  if (tone === "danger") return "badge danger";
+  if (tone === "warning") return "badge warning";
+  return "badge success";
+}
+
 function StatusCell({ member }: { member: MemberItem }) {
   const enrollment = getActiveEnrollment(member);
   const cycle = enrollment ? getActiveCycle(enrollment) : null;
@@ -76,10 +82,8 @@ function StatusCell({ member }: { member: MemberItem }) {
 
   const like = toCycleLike(enrollment, cycle);
   const status = like.kind === "solo" ? soloStatusText(like) : groupStatusText(like);
-  const toneColor =
-    status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--text-sub)";
 
-  return <span style={{ color: toneColor, fontWeight: 500 }}>{status.text}</span>;
+  return <span className={toneBadgeClass(status.tone)}>{status.text}</span>;
 }
 
 interface MembersListViewProps {

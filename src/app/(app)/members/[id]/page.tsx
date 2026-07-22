@@ -133,7 +133,7 @@ function SoloEnrollmentCard({
 
   const status = soloStatusText(toCycleLike(enrollment, cycle));
   const toneColor =
-    status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--text-sub)";
+    status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--success)";
   const remain = cycle.total_count - cycle.used_count;
   const recorded = sessions
     .filter((s) => s.status !== "pending")
@@ -236,7 +236,7 @@ function GroupEnrollmentCard({
 }) {
   const status = groupStatusText(toCycleLike(enrollment, cycle));
   const toneColor =
-    status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--text-sub)";
+    status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--success)";
   const attendedDates = cycle.attendance_logs
     .filter((a) => a.attended)
     .map((a) => a.date)

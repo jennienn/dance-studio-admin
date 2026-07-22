@@ -26,7 +26,7 @@ export function RenewGroupModal({
   memberName: string;
   className: string;
 }) {
-  const [amount, setAmount] = useState("160000");
+  const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"card" | "transfer" | "cash">("card");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [sendNotification, setSendNotification] = useState(true);
@@ -34,8 +34,12 @@ export function RenewGroupModal({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!amount) {
+    if (!amount.trim()) {
       setError("결제 금액을 입력해주세요.");
+      return;
+    }
+    if (!paymentDate) {
+      setError("결제일을 입력해주세요.");
       return;
     }
     setSubmitting(true);
@@ -61,8 +65,10 @@ export function RenewGroupModal({
     <Modal open={open} onClose={onClose} title={memberName}>
       <p style={{ fontSize: 13, color: "var(--text-sub)", margin: 0 }}>{className}</p>
 
-      <label style={labelStyle}>결제 금액</label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} style={inputStyle} />
+      <label style={labelStyle}>
+        결제 금액 <span style={requiredStyle}>*</span>
+      </label>
+      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="금액을 입력하세요" style={inputStyle} />
 
       <label style={labelStyle}>결제 수단</label>
       <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} style={inputStyle}>
@@ -71,7 +77,9 @@ export function RenewGroupModal({
         <option value="cash">현금</option>
       </select>
 
-      <label style={labelStyle}>결제일</label>
+      <label style={labelStyle}>
+        결제일 <span style={requiredStyle}>*</span>
+      </label>
       <input
         type="date"
         value={paymentDate}
@@ -108,4 +116,5 @@ export function RenewGroupModal({
 }
 
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, color: "var(--text-sub)", margin: "12px 0 4px" };
+const requiredStyle: React.CSSProperties = { color: "var(--danger)" };
 const inputStyle: React.CSSProperties = { width: "100%" };

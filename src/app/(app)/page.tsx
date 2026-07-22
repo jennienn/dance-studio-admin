@@ -31,7 +31,7 @@ const PAGE_SIZE = 8;
 function toneColor(tone: Tone) {
   if (tone === "danger") return "var(--danger)";
   if (tone === "warning") return "var(--warning)";
-  return "var(--text-sub)";
+  return "var(--success)";
 }
 
 function NotiBadge({ status }: { status: EnrollmentListItem["notifyStatus"] }) {
@@ -153,59 +153,26 @@ export default function HomePage() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 18 }}>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>
-          홈
-        </h1>
-        <span style={{ fontSize: 13, color: "var(--text-sub)" }}>
-          오늘 {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })}
-        </span>
+      <div className="due-heading">
+        결제 확인 필요 <span className="due-count">{unpaidCount ?? "-"}</span>명
       </div>
 
-      <div className="metrics">
-        <div
-          className={`metric-card clickable${cardFilter === "unpaid" ? " selected" : ""}`}
-          onClick={() => {
-            setCardFilter("unpaid");
-            setPage(1);
-          }}
-        >
-          <p className="metric-label">결제 확인 필요</p>
-          <p className="metric-value">{unpaidCount ?? "-"}건</p>
-        </div>
-        <div
-          className={`metric-card clickable${cardFilter === "unsent" ? " selected" : ""}`}
-          onClick={() => {
-            setCardFilter("unsent");
-            setPage(1);
-          }}
-        >
-          <p className="metric-label">알림톡 미발송</p>
-          <p className="metric-value">{unsentCount ?? "-"}건</p>
-        </div>
-        <div className="metric-card">
-          <p className="metric-label">오늘 수업 예정</p>
-          <p className="metric-value">{todayGroupCount ?? "-"}명</p>
-        </div>
+      <div className="filter-tabs" style={{ marginBottom: 16 }}>
+        {(["전체", "개인", "단체"] as TypeFilter[]).map((t) => (
+          <button
+            key={t}
+            className={`filter-tab${typeFilter === t ? " active" : ""}`}
+            onClick={() => {
+              setTypeFilter(t);
+              setPage(1);
+            }}
+          >
+            {t === "전체" ? "전체" : t === "개인" ? "개인레슨" : "단체레슨"}
+          </button>
+        ))}
       </div>
-      <p className="meta-line">전체 회원 {totalMembers ?? "-"}명</p>
 
-      <div className="panel">
-        <div className="filter-tabs" style={{ marginBottom: 14 }}>
-          {(["전체", "개인", "단체"] as TypeFilter[]).map((t) => (
-            <button
-              key={t}
-              className={`filter-tab${typeFilter === t ? " active" : ""}`}
-              onClick={() => {
-                setTypeFilter(t);
-                setPage(1);
-              }}
-            >
-              {t === "전체" ? "전체" : t === "개인" ? "개인레슨" : "단체레슨"}
-            </button>
-          ))}
-        </div>
-
+      <div className="due-table-wrap">
         {loading ? (
           <p className="state-message">불러오는 중...</p>
         ) : error ? (
@@ -213,67 +180,60 @@ export default function HomePage() {
         ) : items.length === 0 ? (
           <p className="state-message">해당하는 항목이 없습니다.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>회원</th>
-                <th>수강권</th>
-                <th>결제 상태</th>
-                <th>알림톡</th>
-                <th>처리</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.cycleId}>
-                  <td>{item.memberName}</td>
-                  <td>
-                    <span className={`badge ${item.kind === "solo" ? `plan-${item.total}` : "type-group"}`}>
-                      {item.kind === "solo" ? `${item.total}회` : "단체"}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="badge danger" style={{ marginRight: 6 }}>
-                      결제 필요
-                    </span>
-                    <span style={{ color: toneColor(item.tone), fontWeight: 500 }}>{item.statusText}</span>
-                  </td>
-                  <td>
-                    <NotiBadge status={item.notifyStatus} />
-                  </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <button
-                      style={{ width: "auto", padding: "6px 12px", fontSize: 12 }}
-                      onClick={() => (item.kind === "solo" ? setRenewSolo(item) : setRenewGroup(item))}
-                    >
-                      결제 확인
-                    </button>{" "}
-                    <button
-                      className="secondary"
-                      style={{ width: "auto", padding: "6px 10px", fontSize: 12, color: "var(--danger)" }}
-                      onClick={() => handleEnd(item)}
-                    >
-                      종료
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <div className="due-table-head">
+              <div>회원명</div>
+              <div>수강권</div>
+              <div>상태</div>
+              <div>알림톡</div>
+              <div style={{ textAlign: "right" }}>처리</div>
+            </div>
+            {items.map((item) => (
+              <div className="due-table-row" key={item.cycleId}>
+                <div className="due-cell">
+                  <span className="due-cell-name">{item.memberName}</span>
+                  <span className="due-sub">{item.kind === "solo" ? "개인" : "단체"}</span>
+                </div>
+                <div className="due-cell">
+                  <span>{item.label}</span>
+                  <span className="due-sub" style={{ color: toneColor(item.tone) }}>
+                    {item.statusText}
+                  </span>
+                </div>
+                <div>
+                  <span className="badge danger">
+                    <span className="badge-dot" />
+                    결제 필요
+                  </span>
+                </div>
+                <div>
+                  <NotiBadge status={item.notifyStatus} />
+                </div>
+                <div className="due-actions">
+                  <button onClick={() => (item.kind === "solo" ? setRenewSolo(item) : setRenewGroup(item))}>
+                    결제 확인
+                  </button>
+                  <button className="secondary" style={{ color: "var(--danger)" }} onClick={() => handleEnd(item)}>
+                    종료
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
         )}
+      </div>
 
-        <div className="list-footer">
-          <p>
-            총 {total}건 · {page}/{totalPages}페이지
-          </p>
-          <div className="btns">
-            <button className="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              이전
-            </button>
-            <button className="secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              다음
-            </button>
-          </div>
+      <div className="list-footer">
+        <p>
+          총 {total}건 · {page}/{totalPages}페이지
+        </p>
+        <div className="btns">
+          <button className="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            이전
+          </button>
+          <button className="secondary" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            다음
+          </button>
         </div>
       </div>
 

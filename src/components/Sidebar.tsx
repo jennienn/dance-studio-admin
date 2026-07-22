@@ -30,6 +30,19 @@ const NAV_ITEMS = [
     )
   },
   {
+    href: "/attendance",
+    label: "단체 출석",
+    ready: true,
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18" />
+        <path d="M8 3v4M16 3v4" />
+        <path d="M9 15l2 2 4-4" />
+      </svg>
+    )
+  },
+  {
     href: "/members",
     label: "회원",
     ready: true,
@@ -51,19 +64,6 @@ const NAV_ITEMS = [
         <circle cx="9" cy="8" r="3" />
         <path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6" />
         <path d="M15 5l6 6M21 5l-6 6" />
-      </svg>
-    )
-  },
-  {
-    href: "/attendance",
-    label: "단체 출석",
-    ready: true,
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M3 10h18" />
-        <path d="M8 3v4M16 3v4" />
-        <path d="M9 15l2 2 4-4" />
       </svg>
     )
   }

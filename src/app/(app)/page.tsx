@@ -154,7 +154,11 @@ export default function HomePage() {
   return (
     <div>
       <div className="due-heading">
-        결제 확인 필요 <span className="due-count">{unpaidCount ?? "-"}</span>명
+        <span className="due-label">결제 확인 필요</span>
+        <span className="due-value">
+          <span className="due-count">{unpaidCount ?? "-"}</span>
+          <span className="due-unit">명</span>
+        </span>
       </div>
 
       <div className="filter-tabs" style={{ marginBottom: 16 }}>

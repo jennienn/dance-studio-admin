@@ -495,17 +495,36 @@ input::placeholder {
 }
 
 .due-heading {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  margin: 0 0 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0 0 24px;
+}
+.due-label {
+  color: #52525b;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.due-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  white-space: nowrap;
 }
 .due-count {
+  color: var(--text);
   font-family: var(--font-mono);
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 700;
-  color: var(--danger);
+  line-height: 1;
+}
+.due-unit {
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .due-table-wrap {

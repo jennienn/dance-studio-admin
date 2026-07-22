@@ -11,7 +11,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body className={`${GeistSans.variable} ${GeistMono.variable}`}>{children}</body>
+      <body className={`${GeistSans.className} ${GeistSans.variable} ${GeistMono.variable}`}>{children}</body>
     </html>
   );
 }

@@ -367,6 +367,57 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(paymentCount).toBe(0);
   });
 
+  it("신규 회원과 스타터 패키지를 한 트랜잭션으로 생성하고 실패 시 회원도 롤백한다", async () => {
+    const memberName = `${prefix}_신규패키지`;
+    const created = await authenticated
+      .rpc("create_member_with_starter_package_atomic", {
+        p_name: memberName,
+        p_phone: "000-PACKAGE-NEW",
+        p_class_name: `${prefix}_반`,
+        p_schedule_ids: [mondayId],
+        p_amount: 250000,
+        p_method: "card",
+        p_payment_date: "2026-07-14"
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const row = created.data as {
+      member_id: number;
+      package_id: string;
+      solo_enrollment_id: string;
+      group_enrollment_id: string;
+    };
+    createdMembers.push(row.member_id);
+    expect(row.package_id).toBeTruthy();
+
+    const { data: enrollments } = await authenticated
+      .from("enrollments")
+      .select("id, kind, package_id")
+      .eq("member_id", row.member_id)
+      .order("kind");
+    expect(enrollments).toEqual([
+      { id: row.group_enrollment_id, kind: "group", package_id: row.package_id },
+      { id: row.solo_enrollment_id, kind: "solo", package_id: row.package_id }
+    ]);
+
+    const failedName = `${prefix}_신규패키지실패`;
+    const failed = await authenticated.rpc("create_member_with_starter_package_atomic", {
+      p_name: failedName,
+      p_phone: "000-PACKAGE-FAIL",
+      p_class_name: `${prefix}_반`,
+      p_schedule_ids: [999999999],
+      p_amount: 250000,
+      p_method: "card",
+      p_payment_date: "2026-07-14"
+    });
+    expect(failed.error).not.toBeNull();
+    const { count } = await authenticated
+      .from("members")
+      .select("*", { count: "exact", head: true })
+      .eq("name", failedName);
+    expect(count).toBe(0);
+  });
+
   it("스타터 패키지는 개인·단체 중 가장 이른 수업일부터 공통 3주 유효기간을 다시 계산한다", async () => {
     const memberId = await createMember("패키지유효기간");
     const created = await authenticated

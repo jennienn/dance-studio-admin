@@ -64,8 +64,8 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * 신규 회원 등록. 결제 정보(payment)가 함께 오면
- * enrollment(정체성) + enrollment_cycle(1번째 주기) + payment 3건을 한 번에 만든다.
+ * 신규 회원 등록. 결제 정보(payment)가 함께 오면 일반 수강권 또는 스타터 패키지를
+ * 회원과 한 트랜잭션으로 만든다.
  * 개인레슨의 valid_end_date는 여기서 확정하지 않는다 — 첫 수업 기록 시점에 확정된다.
  */
 export async function POST(request: NextRequest) {
@@ -92,6 +92,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: { code: "DB_ERROR", message: error?.message ?? "회원 생성 실패" } }, { status: 500 });
     }
     return NextResponse.json({ memberId: member.id, enrollmentId: null, cycleId: null }, { status: 201 });
+  }
+
+  if (enrollment.kind === "package") {
+    const { data, error } = await supabase
+      .rpc("create_member_with_starter_package_atomic", {
+        p_name: name,
+        p_phone: phone,
+        p_class_name: enrollment.className ?? null,
+        p_schedule_ids: enrollment.scheduleIds ?? [],
+        p_amount: enrollment.payment.amount,
+        p_method: enrollment.payment.method,
+        p_payment_date: enrollment.payment.paymentDate
+      })
+      .single();
+    if (error || !data) {
+      const failure = mapEnrollmentRpcError(error ?? { message: "DB_ERROR: 생성 결과가 없습니다." });
+      return NextResponse.json({ error: { code: failure.code, message: failure.message } }, { status: failure.status });
+    }
+    const row = data as {
+      member_id: number;
+      package_id: string;
+      solo_enrollment_id: string;
+      solo_cycle_id: string;
+      group_enrollment_id: string;
+      group_cycle_id: string;
+    };
+    return NextResponse.json(
+      {
+        memberId: row.member_id,
+        packageId: row.package_id,
+        soloEnrollmentId: row.solo_enrollment_id,
+        soloCycleId: row.solo_cycle_id,
+        groupEnrollmentId: row.group_enrollment_id,
+        groupCycleId: row.group_cycle_id
+      },
+      { status: 201 }
+    );
   }
 
   const { data, error } = await supabase

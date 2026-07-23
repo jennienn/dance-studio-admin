@@ -7,6 +7,7 @@ const env = hasTestEnvironmentFile() ? loadAndValidateTestEnvironment({ requireS
 const suffix = `${Date.now()}_${randomBytes(2).toString("hex")}`;
 const memberName = `테스트회원_E2E_${suffix}`;
 const groupMemberName = `테스트회원_E2E_GROUP_${suffix}`;
+const packageMemberName = `테스트회원_E2E_PACKAGE_${suffix}`;
 const className = `테스트회원_E2E_CLASS_${suffix}`;
 const createdMemberIds: number[] = [];
 let classId: number | null = null;
@@ -116,9 +117,34 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await expect(page.getByText("0명의 출석이 저장되었습니다.")).toBeVisible();
 });
 
+test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: "회원", exact: true }).click();
+  await page.getByRole("button", { name: "+ 회원 등록" }).click();
+  const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
+  await modal.getByPlaceholder("홍길동").fill(packageMemberName);
+  await modal.getByPlaceholder("010-1234-5678").fill("000-E2E-PACKAGE");
+  await modal.getByRole("button", { name: "스타터 패키지", exact: true }).click();
+  await expect(modal.getByText(/개인레슨 2회와.*단체레슨 4회/)).toBeVisible();
+  await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
+  await modal.getByRole("button", { name: "월", exact: true }).click();
+  await modal.getByPlaceholder("금액을 입력하세요").fill("250000");
+  const responsePromise = page.waitForResponse(
+    (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
+  );
+  await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(201);
+  createdMemberIds.push((await response.json()).memberId);
+
+  await expect(page.getByRole("heading", { name: packageMemberName })).toBeVisible();
+  await expect(page.getByText("개인 2회권")).toBeVisible();
+  await expect(page.getByText(`단체 ${className}`)).toBeVisible();
+});
+
 test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터를 남기지 않는다", async ({ page }) => {
   await login(page);
-  for (let index = 0; index < 9; index += 1) {
+  for (let index = 0; index < 8; index += 1) {
     const response = await page.request.post("/api/members", {
       data: {
         name: `테스트회원_E2E_CAPACITY_${suffix}_${index + 1}`,

@@ -31,7 +31,7 @@ export function NewMemberModal({
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [kind, setKind] = useState<"solo" | "group">("solo");
+  const [kind, setKind] = useState<"solo" | "group" | "package">("solo");
 
   const [plan, setPlan] = useState<(typeof SOLO_PLANS)[number] | null>(null);
 
@@ -49,7 +49,7 @@ export function NewMemberModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (kind !== "group") return;
+    if (kind === "solo") return;
     apiFetch<{ classes: ClassItem[] }>("/api/classes")
       .then((res) => setClasses(res.classes))
       .catch(() => setClasses([]));
@@ -57,7 +57,7 @@ export function NewMemberModal({
 
   useEffect(() => {
     setScheduleIds([]);
-    if (kind !== "group" || !classId) {
+    if (kind === "solo" || !classId) {
       setSchedules([]);
       return;
     }
@@ -83,11 +83,11 @@ export function NewMemberModal({
       setError("회차를 선택해주세요.");
       return;
     }
-    if (kind === "group" && !classId) {
+    if (kind !== "solo" && !classId) {
       setError("반을 선택해주세요.");
       return;
     }
-    if (kind === "group" && scheduleIds.length === 0) {
+    if (kind !== "solo" && scheduleIds.length === 0) {
       setError("요일을 하나 이상 선택해주세요.");
       return;
     }
@@ -156,7 +156,21 @@ export function NewMemberModal({
         >
           단체레슨
         </button>
+        <button
+          type="button"
+          className={kind === "package" ? "" : "secondary"}
+          style={{ flex: 1 }}
+          onClick={() => setKind("package")}
+        >
+          스타터 패키지
+        </button>
       </div>
+
+      {kind === "package" && (
+        <p style={{ fontSize: 12, color: "var(--text-sub)", margin: "10px 0 0" }}>
+          개인레슨 2회와 선택한 반의 단체레슨 4회가 함께 등록됩니다. 유효기간은 첫 수업일부터 3주입니다.
+        </p>
+      )}
 
       {kind === "solo" ? (
         <>
@@ -238,15 +252,17 @@ export function NewMemberModal({
       </label>
       <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13 }}>
-        <input
-          type="checkbox"
-          checked={sendNotification}
-          onChange={(e) => setSendNotification(e.target.checked)}
-          style={{ width: "auto" }}
-        />
-        <span>알림톡 발송 (결제/재등록 안내 자동발송 대상에 포함)</span>
-      </div>
+      {kind !== "package" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={sendNotification}
+            onChange={(e) => setSendNotification(e.target.checked)}
+            style={{ width: "auto" }}
+          />
+          <span>알림톡 발송 (결제/재등록 안내 자동발송 대상에 포함)</span>
+        </div>
+      )}
 
       {error && <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 10 }}>{error}</p>}
 

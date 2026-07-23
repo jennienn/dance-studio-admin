@@ -260,7 +260,7 @@ export function NewMemberModal({
             onChange={(e) => setSendNotification(e.target.checked)}
             style={{ width: "auto" }}
           />
-          <span>알림톡 발송 (결제/재등록 안내 자동발송 대상에 포함)</span>
+          <span>등록 완료 알림톡 발송</span>
         </div>
       )}
 

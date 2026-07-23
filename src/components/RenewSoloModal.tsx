@@ -114,7 +114,7 @@ export function RenewSoloModal({
           onChange={(e) => setSendNotification(e.target.checked)}
           style={{ width: "auto" }}
         />
-        <span>결제 완료 알림톡 자동 발송</span>
+        <span>재등록 완료 알림톡 발송</span>
       </div>
 
       {error && <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{error}</p>}

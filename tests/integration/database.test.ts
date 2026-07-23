@@ -558,6 +558,65 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(cycles).toEqual([{ status: "active" }]);
   });
 
+  it("동일 cycle과 알림 종류는 한 이력만 유지하고 실패 이력을 재시도로 갱신한다", async () => {
+    const memberId = await createMember("알림멱등성");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: "2026-07-14"
+      })
+      .single();
+    const row = created.data as { cycle_id: string };
+
+    expect(
+      (
+        await authenticated.from("notifications").insert({
+          cycle_id: row.cycle_id,
+          status: "failed",
+          trigger_type: "auto",
+          error_code: "TEST_FAILURE",
+          fail_reason: "테스트 실패"
+        })
+      ).error
+    ).toBeNull();
+    expect(
+      (
+        await authenticated.from("notifications").upsert(
+          {
+            cycle_id: row.cycle_id,
+            status: "sent",
+            trigger_type: "auto",
+            provider: "solapi",
+            provider_message_id: "테스트메시지_ID",
+            error_code: null,
+            fail_reason: null
+          },
+          { onConflict: "cycle_id,trigger_type" }
+        )
+      ).error
+    ).toBeNull();
+
+    const { data: notifications } = await authenticated
+      .from("notifications")
+      .select("status, provider, provider_message_id, error_code")
+      .eq("cycle_id", row.cycle_id)
+      .eq("trigger_type", "auto");
+    expect(notifications).toEqual([
+      {
+        status: "sent",
+        provider: "solapi",
+        provider_message_id: "테스트메시지_ID",
+        error_code: null
+      }
+    ]);
+  });
+
   it("비로그인 클라이언트의 DB 쓰기를 RLS가 차단한다", async () => {
     const anonymous = createClient(env!.url, env!.anonKey, { auth: { persistSession: false } });
     const { error } = await anonymous.from("members").insert({ name: `${prefix}_차단`, phone: "000-BLOCKED" });

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
+import { deliverCycleNotification } from "@/lib/notification-service";
 
 // 활성 수강권(enrollment.status='active')이 하나도 없는 회원 id 목록.
 // PostgREST 임베드 필터는 "하나라도 일치하는 회원"만 걸러낼 수 있고 "전부 불일치"는 표현할 수 없어서,
@@ -149,8 +150,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { code: failure.code, message: failure.message } }, { status: failure.status });
   }
   const row = data as { member_id: number; enrollment_id: string; cycle_id: string };
+  let notification: "sent" | "failed" | "none" = "none";
+  if (enrollment.sendNotification) {
+    const delivery = await deliverCycleNotification(supabase, row.cycle_id, "registration");
+    notification = delivery.status === "sent" || delivery.status === "skipped" ? "sent" : "failed";
+  }
   return NextResponse.json(
-    { memberId: row.member_id, enrollmentId: row.enrollment_id, cycleId: row.cycle_id },
+    { memberId: row.member_id, enrollmentId: row.enrollment_id, cycleId: row.cycle_id, notification },
     { status: 201 }
   );
 }

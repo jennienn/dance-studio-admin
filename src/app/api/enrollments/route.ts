@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cycleStatus, groupStatusText, isFixedTermCycle, soloStatusText, type CycleLike } from "@/lib/business-rules";
 import { createEnrollmentWithCycle } from "@/lib/enrollment-service";
+import { deliverCycleNotification } from "@/lib/notification-service";
 
 function toCycleLike(cycleRow: any, enrollmentStatus: "active" | "ended"): CycleLike {
   return {
@@ -117,5 +118,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: { code: result.code, message: result.message } }, { status: result.status });
   }
 
-  return NextResponse.json({ enrollmentId: result.enrollmentId, cycleId: result.cycleId }, { status: 201 });
+  let notification: "sent" | "failed" | "none" = "none";
+  if (enrollment.sendNotification) {
+    const delivery = await deliverCycleNotification(supabase, result.cycleId, "registration");
+    notification = delivery.status === "sent" || delivery.status === "skipped" ? "sent" : "failed";
+  }
+  return NextResponse.json(
+    { enrollmentId: result.enrollmentId, cycleId: result.cycleId, notification },
+    { status: 201 }
+  );
 }

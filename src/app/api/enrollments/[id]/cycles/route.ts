@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
+import { deliverCycleNotification } from "@/lib/notification-service";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -44,22 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const row = data as { cycle_id: string; total_count: number };
   let notification: "sent" | "failed" | "none" = "none";
   if (body.sendNotification) {
-    notification = "sent";
-    const { data: enrollment } = await supabase.from("enrollments").select("kind").eq("id", id).single();
-    const message =
-      enrollment?.kind === "solo"
-        ? `개인레슨 ${row.total_count}회로 재등록되었습니다.`
-        : "재결제가 완료되었습니다.";
-    await supabase
-      .from("enrollment_cycles")
-      .update({ notify_status: notification, notify_date: new Date().toISOString() })
-      .eq("id", row.cycle_id);
-    await supabase.from("notifications").insert({
-      cycle_id: row.cycle_id,
-      status: notification,
-      message,
-      trigger_type: "manual_renew"
-    });
+    const delivery = await deliverCycleNotification(supabase, row.cycle_id, "manual_renew");
+    notification = delivery.status === "sent" || delivery.status === "skipped" ? "sent" : "failed";
   }
   return NextResponse.json({ cycleId: row.cycle_id, totalCount: row.total_count, notification }, { status: 201 });
 }

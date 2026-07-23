@@ -1,7 +1,8 @@
 // src/app/api/internal/notifications/run/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { buildNotificationMessage, cycleStatus, type CycleLike } from "@/lib/business-rules";
+import { cycleStatus, type CycleLike } from "@/lib/business-rules";
+import { deliverCycleNotification } from "@/lib/notification-service";
 
 // Vercel Cron이 매일 호출. CRON_SECRET 환경변수를 설정해두면 Vercel이 자동으로
 // `Authorization: Bearer {CRON_SECRET}` 헤더를 붙여 GET 요청을 보낸다 (Vercel 공식 규약).
@@ -19,11 +20,6 @@ function toCycleLike(row: any): CycleLike {
     nextDueDate: row.next_due_date,
     isFixedTerm: row.enrollments.package_id != null
   };
-}
-
-// TODO: 실제 대행사(SOLAPI 등) 연동 전까지는 항상 성공 처리
-async function sendNotification(_phone: string, _message: string): Promise<"sent" | "failed"> {
-  return "sent";
 }
 
 export async function GET(request: NextRequest) {
@@ -56,21 +52,29 @@ export async function GET(request: NextRequest) {
 
     if (!eligible) continue; // 아직 대상 아님 — not_required 유지
 
-    const message = buildNotificationMessage({ ...like, className: row.enrollments.classes?.name });
-    const result = await sendNotification(row.enrollments.members.phone, message);
-    result === "sent" ? sent++ : failed++;
+    // 같은 cycle을 여러 cron 인스턴스가 동시에 잡아도 조건부 update에 성공한 한 건만 발송한다.
+    const { data: claimed } = await supabase
+      .from("enrollment_cycles")
+      .update({ notify_status: "processing", notify_date: new Date().toISOString() })
+      .eq("id", row.id)
+      .in("notify_status", ["not_required", "pending"])
+      .select("id")
+      .maybeSingle();
+    if (!claimed) {
+      skipped++;
+      continue;
+    }
+
+    const result = await deliverCycleNotification(supabase, row.id, "auto");
+    const finalStatus = result.status === "skipped" ? "sent" : result.status;
+    if (finalStatus === "sent") sent++;
+    else failed++;
 
     await supabase
       .from("enrollment_cycles")
-      .update({ notify_status: result, notify_date: new Date().toISOString() })
-      .eq("id", row.id);
-
-    await supabase.from("notifications").insert({
-      cycle_id: row.id,
-      status: result,
-      message,
-      trigger_type: "auto"
-    });
+      .update({ notify_status: finalStatus, notify_date: new Date().toISOString() })
+      .eq("id", row.id)
+      .eq("notify_status", "processing");
   }
 
   return NextResponse.json({ checked: data?.length ?? 0, sent, failed, skipped });

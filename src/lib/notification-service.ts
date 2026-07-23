@@ -58,12 +58,9 @@ function messageFor(row: NotificationCycleRow, trigger: NotificationTrigger) {
 }
 
 function variablesFor(row: NotificationCycleRow): Record<string, string> {
-  return {
-    "#{회원명}": row.enrollments.members.name,
-    "#{수업명}": row.enrollments.classes?.name ?? "개인레슨",
-    "#{총횟수}": String(row.total_count),
-    "#{잔여횟수}": String(row.total_count - row.used_count)
-  };
+  return row.enrollments.kind === "solo"
+    ? { "#{총횟수}": String(row.total_count) }
+    : { "#{수업명}": row.enrollments.classes?.name ?? "단체레슨" };
 }
 
 async function deliverCycleNotificationInternal(

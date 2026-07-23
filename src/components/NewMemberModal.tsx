@@ -143,7 +143,7 @@ export function NewMemberModal({
         <button
           type="button"
           className={kind === "solo" ? "" : "secondary"}
-          style={{ flex: 1 }}
+          style={kindButtonStyle}
           onClick={() => setKind("solo")}
         >
           개인레슨
@@ -151,7 +151,7 @@ export function NewMemberModal({
         <button
           type="button"
           className={kind === "group" ? "" : "secondary"}
-          style={{ flex: 1 }}
+          style={kindButtonStyle}
           onClick={() => setKind("group")}
         >
           단체레슨
@@ -159,7 +159,7 @@ export function NewMemberModal({
         <button
           type="button"
           className={kind === "package" ? "" : "secondary"}
-          style={{ flex: 1 }}
+          style={kindButtonStyle}
           onClick={() => setKind("package")}
         >
           스타터 패키지
@@ -281,3 +281,10 @@ export function NewMemberModal({
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 12, color: "var(--text-sub)", margin: "14px 0 4px" };
 const requiredStyle: React.CSSProperties = { color: "var(--danger)" };
 const inputStyle: React.CSSProperties = { width: "100%" };
+const kindButtonStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  padding: "10px 6px",
+  fontSize: 13,
+  whiteSpace: "nowrap"
+};

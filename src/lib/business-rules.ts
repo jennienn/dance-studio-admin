@@ -19,16 +19,29 @@ export interface CycleLike {
   validEndDate?: string | null; // ISO date, 첫 수업 전이면 null
   // group
   nextDueDate?: string | null; // ISO date
+  // true면 kind와 무관하게 validEndDate+잔여 기준(개인레슨과 동일한 규칙)으로 판정한다.
+  // 스타터 패키지의 단체 절반(kind='group'이지만 반복결제가 아니라 고정 회차+공통 유효기간)에 사용.
+  isFixedTerm?: boolean;
+}
+
+/** kind==='solo'이거나 패키지 소속 단체 cycle이면 validEndDate+잔여 기준("고정 기간형")으로 판정한다. */
+export function isFixedTermCycle(c: CycleLike): boolean {
+  return c.kind === "solo" || c.isFixedTerm === true;
 }
 
 export const WEEKS_BY_PLAN: Record<4 | 8 | 12, number> = {
   4: 5,
   8: 9,
-  12: 12
+  12: 13
 };
 
 export const GROUP_RENEWAL_WEEKS = 5;
 export const GROUP_FIXED_COUNT = 8;
+
+// 스타터 패키지(개인+단체 세트 상품) 고정 구성 — SQL(create_starter_package_atomic)에도 리터럴로 중복 유지.
+export const PACKAGE_SOLO_COUNT = 2;
+export const PACKAGE_GROUP_COUNT = 4;
+export const PACKAGE_VALID_WEEKS = 3;
 
 const KOREA_TIME_ZONE = "Asia/Seoul";
 
@@ -97,8 +110,8 @@ export type StatusResult = "danger" | null;
 export function cycleStatus(c: CycleLike, today: Date = new Date()): StatusResult {
   if (c.enrollmentStatus === "ended" || c.cycleStatus !== "active") return null;
 
-  if (c.kind === "solo") {
-    if (c.validEndDate && daysUntil(c.validEndDate, today) < 0) return "danger";
+  if (isFixedTermCycle(c)) {
+    if (c.validEndDate && daysUntil(c.validEndDate, today) <= 7) return "danger";
     return remainOf(c) <= 1 ? "danger" : null;
   }
 
@@ -118,26 +131,42 @@ export interface StatusText {
   tone: "danger" | "warning" | "muted";
 }
 
+/** ISO 날짜("YYYY-MM-DD..." 또는 그 앞부분)를 화면 표기용 "YYYY.MM.DD"로 변환. */
+export function formatDisplayDate(value: string): string {
+  return value.slice(0, 10).replaceAll("-", ".");
+}
+
+/**
+ * "고정 기간형"(개인레슨, 패키지 단체) 상태 문구.
+ * 기본: 잔여 [N]회 · 유효기간 [YYYY.MM.DD]. 결제 임박(cycleStatus==='danger')이면 강조 문구로 전환.
+ */
 export function soloStatusText(c: CycleLike, today: Date = new Date()): StatusText {
   if (!c.validEndDate) {
     return { text: "첫 수업 전", tone: "muted" };
   }
-  if (daysUntil(c.validEndDate, today) < 0) {
-    return { text: "이용기간 만료", tone: "danger" };
-  }
   const remain = remainOf(c);
-  if (remain <= 0) return { text: "잔여 0회", tone: "danger" };
-  if (remain === 1) return { text: "잔여 1회", tone: "warning" };
-  return { text: `잔여 ${remain}회`, tone: "muted" };
+  if (daysUntil(c.validEndDate, today) < 0) {
+    return { text: `이용기간 만료 · 유효기간 ${formatDisplayDate(c.validEndDate)}`, tone: "danger" };
+  }
+  if (cycleStatus(c, today) === "danger") {
+    const d = daysUntil(c.validEndDate, today);
+    return {
+      text: d <= 7 ? `결제 임박 · 잔여 ${remain}회 · D-${d}` : `결제 임박 · 잔여 ${remain}회`,
+      tone: "danger"
+    };
+  }
+  return { text: `잔여 ${remain}회 · 유효기간 ${formatDisplayDate(c.validEndDate)}`, tone: "muted" };
 }
 
+/** "반복 결제형"(일반 단체) 상태 문구. 기본: 잔여 [N]회 · 유효기간 [YYYY.MM.DD]. 7일 이내면 결제 임박 강조. */
 export function groupStatusText(c: CycleLike, today: Date = new Date()): StatusText {
   if (!c.nextDueDate) return { text: "-", tone: "muted" };
+  const remain = remainOf(c);
   const d = daysUntil(c.nextDueDate, today);
-  if (d < 0) return { text: `${-d}일 지남`, tone: "danger" };
-  if (d === 0) return { text: "오늘 결제 예정", tone: "danger" };
-  if (d <= 7) return { text: `결제 D-${d}`, tone: "warning" };
-  return { text: "결제 예정", tone: "muted" };
+  if (d < 0) return { text: `결제 지연 · 잔여 ${remain}회 · ${-d}일 지남`, tone: "danger" };
+  if (d === 0) return { text: `결제 임박 · 잔여 ${remain}회 · 오늘 결제 예정`, tone: "danger" };
+  if (d <= 7) return { text: `결제 임박 · 잔여 ${remain}회 · D-${d}`, tone: "warning" };
+  return { text: `잔여 ${remain}회 · 유효기간 ${formatDisplayDate(c.nextDueDate)}`, tone: "muted" };
 }
 
 /**

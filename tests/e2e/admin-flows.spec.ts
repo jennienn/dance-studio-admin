@@ -23,6 +23,10 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/$/);
 }
 
+function remainingCount(page: Page, count: number) {
+  return page.getByText("남은 회차").locator("..").getByText(`${count}회`, { exact: true });
+}
+
 test.beforeAll(async () => {
   if (!env) return;
   if (!env.adminEmail || !env.adminPassword) throw new Error("TEST_ADMIN_EMAIL과 TEST_ADMIN_PASSWORD가 필요합니다.");
@@ -54,35 +58,35 @@ test.afterAll(async () => {
 
 test("로그인, 회원 목록, 개인레슨 등록, 첫 수업, 잔여 회차, 재등록", async ({ page }) => {
   await login(page);
-  await page.getByRole("link", { name: "회원" }).click();
+  await page.getByRole("link", { name: "회원", exact: true }).click();
   await expect(page.getByRole("heading", { name: "회원" })).toBeVisible();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   await page.getByPlaceholder("홍길동").fill(memberName);
   await page.getByPlaceholder("010-1234-5678").fill("000-E2E-001");
   await page.getByRole("button", { name: "4회권" }).click();
-  await page.getByPlaceholder("370000").fill("200000");
+  await page.getByPlaceholder("금액을 입력하세요").fill("200000");
   const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
-  await page.getByRole("button", { name: "회원 등록", exact: true }).click();
+  await page.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   createdMemberIds.push((await response.json()).memberId);
 
   await expect(page.getByRole("heading", { name: memberName })).toBeVisible();
-  await expect(page.getByText(/잔여 4\/4회/)).toBeVisible();
+  await expect(remainingCount(page, 4)).toBeVisible();
   await page.getByRole("button", { name: "+ 수업 기록 추가" }).click();
   await page.getByRole("button", { name: "기록 추가", exact: true }).click();
-  await expect(page.getByText(/잔여 3\/4회/)).toBeVisible();
+  await expect(remainingCount(page, 3)).toBeVisible();
 
   await page.getByRole("button", { name: "결제 확인", exact: true }).click();
   await page.getByRole("button", { name: "4회권" }).click();
-  await page.getByPlaceholder("370000").fill("200000");
+  await page.getByPlaceholder("금액을 입력하세요").fill("200000");
   await page.getByRole("button", { name: "4회권 결제 확인 완료" }).click();
-  await expect(page.getByText(/잔여 7\/7회/)).toBeVisible();
+  await expect(remainingCount(page, 7)).toBeVisible();
 });
 
 test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ page }) => {
   await login(page);
-  await page.getByRole("link", { name: "회원" }).click();
+  await page.getByRole("link", { name: "회원", exact: true }).click();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
   await modal.getByPlaceholder("홍길동").fill(groupMemberName);
@@ -91,9 +95,9 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
   await modal.getByRole("button", { name: "수", exact: true }).click();
-  await modal.getByPlaceholder("370000").fill("160000");
+  await modal.getByPlaceholder("금액을 입력하세요").fill("160000");
   const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
-  await modal.getByRole("button", { name: "회원 등록", exact: true }).click();
+  await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   createdMemberIds.push((await response.json()).memberId);
@@ -131,7 +135,7 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
     createdMemberIds.push((await response.json()).memberId);
   }
 
-  await page.getByRole("link", { name: "회원" }).click();
+  await page.getByRole("link", { name: "회원", exact: true }).click();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
   await modal.getByPlaceholder("홍길동").fill(`테스트회원_E2E_CAPACITY_BLOCKED_${suffix}`);
@@ -139,11 +143,11 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
   await modal.getByRole("button", { name: "단체레슨" }).click();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
-  await modal.getByPlaceholder("370000").fill("160000");
+  await modal.getByPlaceholder("금액을 입력하세요").fill("160000");
   const blockedResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
   );
-  await modal.getByRole("button", { name: "회원 등록", exact: true }).click();
+  await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   expect((await blockedResponse).status()).toBe(409);
   await expect(page.getByText(/CLASS_CAPACITY_EXCEEDED|반 정원/)).toBeVisible();
 });

@@ -31,7 +31,7 @@ export function AddEnrollmentModal({
   onSuccess: () => void;
   memberId: number;
 }) {
-  const [kind, setKind] = useState<"solo" | "group">("solo");
+  const [kind, setKind] = useState<"solo" | "group" | "package">("solo");
   const [plan, setPlan] = useState<(typeof SOLO_PLANS)[number] | null>(null);
 
   const [classes, setClasses] = useState<ClassItem[]>([]);
@@ -48,7 +48,7 @@ export function AddEnrollmentModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (kind !== "group") return;
+    if (kind === "solo") return;
     apiFetch<{ classes: ClassItem[] }>("/api/classes")
       .then((res) => setClasses(res.classes))
       .catch(() => setClasses([]));
@@ -56,7 +56,7 @@ export function AddEnrollmentModal({
 
   useEffect(() => {
     setScheduleIds([]);
-    if (kind !== "group" || !classId) {
+    if (kind === "solo" || !classId) {
       setSchedules([]);
       return;
     }
@@ -74,11 +74,11 @@ export function AddEnrollmentModal({
       setError("회차를 선택해주세요.");
       return;
     }
-    if (kind === "group" && !classId) {
+    if (kind !== "solo" && !classId) {
       setError("반을 선택해주세요.");
       return;
     }
-    if (kind === "group" && scheduleIds.length === 0) {
+    if (kind !== "solo" && scheduleIds.length === 0) {
       setError("요일을 하나 이상 선택해주세요.");
       return;
     }
@@ -95,16 +95,28 @@ export function AddEnrollmentModal({
     setError(null);
     try {
       const className = classes.find((c) => c.id === classId)?.name;
-      await apiFetch("/api/enrollments", {
-        method: "POST",
-        body: JSON.stringify({
-          memberId,
-          kind,
-          ...(kind === "solo" ? { plan } : { className, scheduleIds }),
-          payment: { amount: Number(amount), method, paymentDate },
-          sendNotification
-        })
-      });
+      if (kind === "package") {
+        await apiFetch("/api/enrollments/package", {
+          method: "POST",
+          body: JSON.stringify({
+            memberId,
+            className,
+            scheduleIds,
+            payment: { amount: Number(amount), method, paymentDate }
+          })
+        });
+      } else {
+        await apiFetch("/api/enrollments", {
+          method: "POST",
+          body: JSON.stringify({
+            memberId,
+            kind,
+            ...(kind === "solo" ? { plan } : { className, scheduleIds }),
+            payment: { amount: Number(amount), method, paymentDate },
+            sendNotification
+          })
+        });
+      }
       onSuccess();
       onClose();
     } catch (e: any) {
@@ -134,7 +146,22 @@ export function AddEnrollmentModal({
         >
           단체레슨
         </button>
+        <button
+          type="button"
+          className={kind === "package" ? "" : "secondary"}
+          style={{ flex: 1 }}
+          onClick={() => setKind("package")}
+        >
+          스타터 패키지
+        </button>
       </div>
+
+      {kind === "package" && (
+        <p style={{ fontSize: 12, color: "var(--text-sub)", margin: "10px 0 0" }}>
+          개인레슨 2회 + 단체레슨(아래에서 선택한 반) 4회로 함께 등록됩니다. 유효기간은 개인/단체 중 먼저 출석한
+          날짜로부터 3주 공통 적용됩니다.
+        </p>
+      )}
 
       {kind === "solo" ? (
         <>
@@ -216,15 +243,17 @@ export function AddEnrollmentModal({
       </label>
       <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13 }}>
-        <input
-          type="checkbox"
-          checked={sendNotification}
-          onChange={(e) => setSendNotification(e.target.checked)}
-          style={{ width: "auto" }}
-        />
-        <span>알림톡 발송 (결제/재등록 안내 자동발송 대상에 포함)</span>
-      </div>
+      {kind !== "package" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={sendNotification}
+            onChange={(e) => setSendNotification(e.target.checked)}
+            style={{ width: "auto" }}
+          />
+          <span>알림톡 발송 (결제/재등록 안내 자동발송 대상에 포함)</span>
+        </div>
+      )}
 
       {error && <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 10 }}>{error}</p>}
 

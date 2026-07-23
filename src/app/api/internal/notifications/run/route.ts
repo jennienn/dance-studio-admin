@@ -16,7 +16,8 @@ function toCycleLike(row: any): CycleLike {
     totalCount: row.total_count,
     usedCount: row.used_count,
     validEndDate: row.valid_end_date,
-    nextDueDate: row.next_due_date
+    nextDueDate: row.next_due_date,
+    isFixedTerm: row.enrollments.package_id != null
   };
 }
 
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
   // (cycleStatus()가 'danger'로 새로 바뀐 건들을 찾아 발송 대상으로 전환)
   const { data, error } = await supabase
     .from("enrollment_cycles")
-    .select("*, enrollments!inner(kind, status, class_id, classes(name), members(phone))")
+    .select("*, enrollments!inner(kind, status, class_id, package_id, classes(name), members(phone))")
     .eq("status", "active")
     .in("notify_status", ["not_required", "pending"]);
 

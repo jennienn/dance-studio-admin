@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
 import { NewMemberModal } from "@/components/NewMemberModal";
-import { soloStatusText, groupStatusText, type CycleLike } from "@/lib/business-rules";
+import { soloStatusText, groupStatusText, isFixedTermCycle, type CycleLike } from "@/lib/business-rules";
 
 type KindFilter = "전체" | "개인" | "단체";
 
@@ -24,6 +24,7 @@ interface MemberEnrollment {
   kind: "solo" | "group";
   status: "active" | "ended";
   class_id: number | null;
+  package_id: string | null;
   classes: { name: string } | null;
   enrollment_cycles: MemberCycle[];
 }
@@ -37,8 +38,8 @@ interface MemberItem {
 
 const PAGE_SIZE = 10;
 
-function getActiveEnrollment(member: MemberItem): MemberEnrollment | null {
-  return member.enrollments.find((e) => e.status === "active") ?? null;
+function getActiveEnrollments(member: MemberItem): MemberEnrollment[] {
+  return member.enrollments.filter((e) => e.status === "active");
 }
 
 function getActiveCycle(enrollment: MemberEnrollment): MemberCycle | null {
@@ -54,19 +55,38 @@ function toCycleLike(enrollment: MemberEnrollment, cycle: MemberCycle): CycleLik
     totalCount: cycle.total_count,
     usedCount: cycle.used_count,
     validEndDate: cycle.valid_end_date,
-    nextDueDate: cycle.next_due_date
+    nextDueDate: cycle.next_due_date,
+    isFixedTerm: enrollment.package_id != null
   };
 }
 
 function CurrentEnrollmentCell({ member }: { member: MemberItem }) {
-  const enrollment = getActiveEnrollment(member);
-  if (!enrollment) return <span style={{ color: "var(--text-mute)" }}>-</span>;
+  const enrollments = getActiveEnrollments(member);
+  if (enrollments.length === 0) return <span style={{ color: "var(--text-mute)" }}>-</span>;
 
-  if (enrollment.kind === "solo") {
-    const cycle = getActiveCycle(enrollment);
-    return <span className={`badge plan-${cycle?.plan ?? 4}`}>개인 {cycle?.plan ?? "-"}회권</span>;
-  }
-  return <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>;
+  return (
+    <div className="badge-stack">
+      {enrollments.map((enrollment) => {
+        const cycle = getActiveCycle(enrollment);
+        return (
+          <span key={enrollment.id}>
+            {enrollment.kind === "solo" ? (
+              <span className={cycle?.plan ? `badge plan-${cycle.plan}` : "badge mute"}>
+                개인 {cycle?.plan ?? cycle?.total_count ?? "-"}회권
+              </span>
+            ) : (
+              <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>
+            )}
+            {enrollment.package_id != null && (
+              <span className="badge mute" style={{ marginLeft: 6 }}>
+                스타터 패키지
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 function toneBadgeClass(tone: "danger" | "warning" | "muted") {
@@ -76,14 +96,26 @@ function toneBadgeClass(tone: "danger" | "warning" | "muted") {
 }
 
 function StatusCell({ member }: { member: MemberItem }) {
-  const enrollment = getActiveEnrollment(member);
-  const cycle = enrollment ? getActiveCycle(enrollment) : null;
-  if (!enrollment || !cycle) return <span style={{ color: "var(--text-mute)" }}>수강 없음</span>;
+  const enrollments = getActiveEnrollments(member);
+  const withCycle = enrollments
+    .map((enrollment) => ({ enrollment, cycle: getActiveCycle(enrollment) }))
+    .filter((x): x is { enrollment: MemberEnrollment; cycle: MemberCycle } => x.cycle !== null);
 
-  const like = toCycleLike(enrollment, cycle);
-  const status = like.kind === "solo" ? soloStatusText(like) : groupStatusText(like);
+  if (withCycle.length === 0) return <span style={{ color: "var(--text-mute)" }}>수강 없음</span>;
 
-  return <span className={toneBadgeClass(status.tone)}>{status.text}</span>;
+  return (
+    <div className="badge-stack">
+      {withCycle.map(({ enrollment, cycle }) => {
+        const like = toCycleLike(enrollment, cycle);
+        const status = isFixedTermCycle(like) ? soloStatusText(like) : groupStatusText(like);
+        return (
+          <span key={enrollment.id} className={toneBadgeClass(status.tone)}>
+            {status.text}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 interface MembersListViewProps {

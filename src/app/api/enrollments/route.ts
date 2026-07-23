@@ -1,7 +1,7 @@
 // src/app/api/enrollments/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { cycleStatus, groupStatusText, soloStatusText, type CycleLike } from "@/lib/business-rules";
+import { cycleStatus, groupStatusText, isFixedTermCycle, soloStatusText, type CycleLike } from "@/lib/business-rules";
 import { createEnrollmentWithCycle } from "@/lib/enrollment-service";
 
 function toCycleLike(cycleRow: any, enrollmentStatus: "active" | "ended"): CycleLike {
@@ -13,7 +13,8 @@ function toCycleLike(cycleRow: any, enrollmentStatus: "active" | "ended"): Cycle
     totalCount: cycleRow.total_count,
     usedCount: cycleRow.used_count,
     validEndDate: cycleRow.valid_end_date,
-    nextDueDate: cycleRow.next_due_date
+    nextDueDate: cycleRow.next_due_date,
+    isFixedTerm: cycleRow.package_id != null
   };
 }
 
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
   let query = supabase
     .from("enrollment_cycles")
     .select(
-      "*, enrollments!inner(id, kind, status, member_id, class_id, members(id, name), classes(name))"
+      "*, enrollments!inner(id, kind, status, member_id, class_id, package_id, members(id, name), classes(name))"
     )
     .eq("status", "active")
     .eq("enrollments.status", "active");
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
   let items = (data ?? [])
     .map((row: any) => ({
       row,
-      like: toCycleLike({ ...row, kind: row.enrollments.kind }, row.enrollments.status)
+      like: toCycleLike({ ...row, kind: row.enrollments.kind, package_id: row.enrollments.package_id }, row.enrollments.status)
     }))
     .filter(({ like }) => cycleStatus(like) === "danger");
 
@@ -54,8 +55,8 @@ export async function GET(request: NextRequest) {
   }
 
   items.sort((a, b) => {
-    const aKey = a.like.kind === "solo" ? a.row.total_count - a.row.used_count : a.row.next_due_date;
-    const bKey = b.like.kind === "solo" ? b.row.total_count - b.row.used_count : b.row.next_due_date;
+    const aKey = isFixedTermCycle(a.like) ? a.row.total_count - a.row.used_count : a.row.next_due_date;
+    const bKey = isFixedTermCycle(b.like) ? b.row.total_count - b.row.used_count : b.row.next_due_date;
     return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
   });
 
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
   const paged = items.slice(start, start + pageSize);
 
   const result = paged.map(({ row, like }) => {
-    const statusText = like.kind === "solo" ? soloStatusText(like) : groupStatusText(like);
+    const statusText = isFixedTermCycle(like) ? soloStatusText(like) : groupStatusText(like);
     return {
       cycleId: row.id,
       enrollmentId: row.enrollments.id,
@@ -72,7 +73,10 @@ export async function GET(request: NextRequest) {
       memberName: row.enrollments.members.name,
       kind: row.enrollments.kind,
       className: row.enrollments.kind === "group" ? row.enrollments.classes.name : null,
-      label: row.enrollments.kind === "solo" ? `개인 ${row.plan}회권` : `단체 ${row.enrollments.classes.name}`,
+      label:
+        row.enrollments.kind === "solo"
+          ? `개인 ${row.plan ?? row.total_count}회권${row.enrollments.package_id ? " (패키지)" : ""}`
+          : `단체 ${row.enrollments.classes.name}${row.enrollments.package_id ? " (패키지)" : ""}`,
       statusText: statusText.text,
       tone: statusText.tone,
       remain: row.total_count - row.used_count,

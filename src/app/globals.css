@@ -32,7 +32,7 @@
   --radius: 9999px;
   --radius-lg: 16px;
   --font-sans: var(--font-geist-sans, "Geist Sans"), -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
-  --font-mono: var(--font-geist-mono, "Geist Mono"), ui-monospace, SFMono-Regular, monospace;
+  --font-numeric: var(--font-sans);
 }
 
 * {
@@ -199,7 +199,7 @@ textarea {
   margin: 0 0 6px;
 }
 .metric-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   color: var(--text);
   font-size: 28px;
   font-weight: 700;
@@ -225,7 +225,7 @@ th {
   border-bottom: 1px solid var(--border);
 }
 td {
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   color: var(--text);
   padding: 14px 10px;
   border-bottom: 1px solid var(--border);
@@ -289,6 +289,13 @@ tr[data-clickable="true"]:hover {
 .badge.type-group {
   background: var(--group-soft);
   color: var(--group);
+}
+
+.badge-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 .noti {
@@ -434,7 +441,7 @@ input::placeholder {
   margin: 0 0 4px;
 }
 .info-value {
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   color: var(--text);
   font-size: 15px;
   font-weight: 600;
@@ -466,7 +473,7 @@ input::placeholder {
   margin: 0;
 }
 .validity-date {
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
 }
 .expiry-chip {
   display: inline-flex;
@@ -509,7 +516,7 @@ input::placeholder {
 }
 .session-summary-item strong {
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   font-size: 16px;
   font-weight: 700;
 }
@@ -525,7 +532,7 @@ input::placeholder {
 }
 .group-billing-date {
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   font-size: 16px;
   font-weight: 700;
   line-height: 1.4;
@@ -544,7 +551,7 @@ input::placeholder {
 }
 .group-secondary-info > span:first-of-type {
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   font-weight: 600;
 }
 .group-info-divider {
@@ -570,7 +577,7 @@ input::placeholder {
   min-height: 44px;
   padding: 10px 4px;
   font-size: 14px;
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   color: var(--text);
   border-bottom: 1px solid var(--border);
 }
@@ -639,7 +646,7 @@ input::placeholder {
 }
 .due-count {
   color: var(--text);
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   font-size: 36px;
   font-weight: 700;
   line-height: 1;
@@ -681,7 +688,7 @@ input::placeholder {
   padding: 17px 24px;
   border-bottom: 1px solid var(--border-soft);
   font-size: 14px;
-  font-family: var(--font-mono);
+  font-family: var(--font-numeric);
   color: var(--text);
 }
 .due-table-row:last-child {

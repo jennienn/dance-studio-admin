@@ -11,7 +11,7 @@ import { AddSessionModal } from "@/components/AddSessionModal";
 import { EditGroupScheduleModal } from "@/components/EditGroupScheduleModal";
 import { RenewSoloModal } from "@/components/RenewSoloModal";
 import { RenewGroupModal } from "@/components/RenewGroupModal";
-import { daysUntil, groupStatusText, type CycleLike } from "@/lib/business-rules";
+import { daysUntil, groupStatusText, isFixedTermCycle, soloStatusText, type CycleLike } from "@/lib/business-rules";
 
 interface Payment {
   id: number;
@@ -52,6 +52,7 @@ interface Enrollment {
   member_id: number;
   kind: "solo" | "group";
   class_id: number | null;
+  package_id: string | null;
   status: "active" | "ended";
   classes: { name: string } | null;
   enrollment_cycles: Cycle[];
@@ -83,8 +84,13 @@ function toCycleLike(enrollment: Enrollment, cycle: Cycle): CycleLike {
     totalCount: cycle.total_count,
     usedCount: cycle.used_count,
     validEndDate: cycle.valid_end_date,
-    nextDueDate: cycle.next_due_date
+    nextDueDate: cycle.next_due_date,
+    isFixedTerm: enrollment.package_id != null
   };
+}
+
+function PackageTag() {
+  return <span className="badge mute" style={{ marginLeft: 6 }}>스타터 패키지</span>;
 }
 
 function NotiBadge({ status }: { status: Cycle["notify_status"] }) {
@@ -154,7 +160,10 @@ function SoloEnrollmentCard({
     <div className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <span className={`badge plan-${cycle.plan ?? 4}`}>개인 {cycle.plan}회권</span>
+          <span className={cycle.plan ? `badge plan-${cycle.plan}` : "badge mute"}>
+            개인 {cycle.plan ?? cycle.total_count}회권
+          </span>
+          {enrollment.package_id != null && <PackageTag />}
           {enrollment.status === "ended" && (
             <span className="badge mute" style={{ marginLeft: 6 }}>
               종료됨
@@ -242,13 +251,17 @@ function SoloEnrollmentCard({
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
         <button className="secondary" style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={onAddSession}>
           + 수업 기록 추가
         </button>
-        <button style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={onRenew}>
-          결제 확인
-        </button>
+        {enrollment.package_id != null ? (
+          <span style={{ fontSize: 12, color: "var(--text-mute)" }}>패키지 재등록은 추후 지원 예정입니다</span>
+        ) : (
+          <button style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={onRenew}>
+            결제 확인
+          </button>
+        )}
       </div>
     </div>
   );
@@ -267,7 +280,9 @@ function GroupEnrollmentCard({
   onEditSchedule: () => void;
   onEnd: () => void;
 }) {
-  const status = groupStatusText(toCycleLike(enrollment, cycle));
+  const isPackage = enrollment.package_id != null;
+  const like = toCycleLike(enrollment, cycle);
+  const status = isFixedTermCycle(like) ? soloStatusText(like) : groupStatusText(like);
   const toneColor =
     status.tone === "danger" ? "var(--danger)" : status.tone === "warning" ? "var(--warning)" : "var(--success)";
   const attendedDates = cycle.attendance_logs
@@ -275,12 +290,14 @@ function GroupEnrollmentCard({
     .map((a) => a.date)
     .sort();
   const lastAttendance = attendedDates.length ? attendedDates[attendedDates.length - 1] : null;
+  const remain = cycle.total_count - cycle.used_count;
 
   return (
     <div className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>
+          {isPackage && <PackageTag />}
           {enrollment.status === "ended" && (
             <span className="badge mute" style={{ marginLeft: 6 }}>
               종료됨
@@ -297,19 +314,49 @@ function GroupEnrollmentCard({
         )}
       </div>
 
-      <div className="group-billing-summary">
-        <div>
-          <p className="enrollment-primary-label">결제일</p>
-          <p className="group-billing-date">{formatCalendarDate(cycle.payment_date)}</p>
+      {isPackage ? (
+        <div className="enrollment-primary">
+          <p className="enrollment-primary-label">유효기간</p>
+          {cycle.first_class_date && cycle.valid_end_date ? (
+            <div className="validity-line">
+              <p className="validity-date">
+                {formatCalendarDate(cycle.first_class_date)} ~ {formatCalendarDate(cycle.valid_end_date)}
+              </p>
+              <ExpiryChip validEndDate={cycle.valid_end_date} />
+            </div>
+          ) : (
+            <p className="validity-pending">첫 수업 등록 후 확정</p>
+          )}
+          <div className="session-summary">
+            <div className="session-summary-item">
+              <span>남은 회차</span>
+              <strong>{remain}회</strong>
+            </div>
+            <div className="session-summary-item">
+              <span>사용 회차</span>
+              <strong>{cycle.used_count}회</strong>
+            </div>
+            <div className="session-summary-item">
+              <span>총 회차</span>
+              <strong>{cycle.total_count}회</strong>
+            </div>
+          </div>
         </div>
-        <div>
-          <p className="enrollment-primary-label">다음 결제 예정일</p>
-          <p className="group-billing-date" style={{ color: toneColor }}>
-            {cycle.next_due_date ? formatCalendarDate(cycle.next_due_date) : "-"}
-            <span className="group-billing-status">{status.text}</span>
-          </p>
+      ) : (
+        <div className="group-billing-summary">
+          <div>
+            <p className="enrollment-primary-label">결제일</p>
+            <p className="group-billing-date">{formatCalendarDate(cycle.payment_date)}</p>
+          </div>
+          <div>
+            <p className="enrollment-primary-label">다음 결제 예정일</p>
+            <p className="group-billing-date" style={{ color: toneColor }}>
+              {cycle.next_due_date ? formatCalendarDate(cycle.next_due_date) : "-"}
+              <span className="group-billing-status">{status.text}</span>
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <p className="group-secondary-info">
         최근 출석일 <span>{lastAttendance ? formatCalendarDate(lastAttendance) : "-"}</span>
@@ -317,10 +364,14 @@ function GroupEnrollmentCard({
         알림톡 <NotiBadge status={cycle.notify_status} />
       </p>
 
-      <div style={{ marginTop: 16 }}>
-        <button style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={onRenew}>
-          결제 확인
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+        {isPackage ? (
+          <span style={{ fontSize: 12, color: "var(--text-mute)" }}>패키지 재등록은 추후 지원 예정입니다</span>
+        ) : (
+          <button style={{ width: "auto", padding: "7px 12px", fontSize: 12 }} onClick={onRenew}>
+            결제 확인
+          </button>
+        )}
       </div>
     </div>
   );

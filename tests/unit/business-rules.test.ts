@@ -6,8 +6,12 @@ import {
   countDistinctMembers,
   cycleStatus,
   daysUntil,
+  formatDisplayDate,
+  groupStatusText,
+  isFixedTermCycle,
   koreaDateString,
   remainOf,
+  soloStatusText,
   type CycleLike
 } from "@/lib/business-rules";
 
@@ -26,7 +30,7 @@ describe("개인레슨 규칙", () => {
   it.each([
     [4, "2026-08-18"],
     [8, "2026-09-15"],
-    [12, "2026-10-06"]
+    [12, "2026-10-13"]
   ] as const)("%i회권의 첫 수업 기준 유효기간을 계산한다", (plan, expected) => {
     expect(calcSoloValidEnd(new Date("2026-07-14T00:00:00+09:00"), plan).toISOString().slice(0, 10)).toBe(expected);
   });
@@ -88,6 +92,110 @@ describe("단체레슨 규칙", () => {
     const ten = Array.from({ length: 10 }, (_, index) => index + 1);
     expect(canAddMemberToClass(ten, 10)).toBe(true);
     expect(canAddMemberToClass(ten, 11)).toBe(false);
+  });
+});
+
+describe("상태 표기 문구", () => {
+  it("날짜를 YYYY.MM.DD 형태로 표기한다", () => {
+    expect(formatDisplayDate("2026-08-18")).toBe("2026.08.18");
+  });
+
+  it("개인레슨: 평상시엔 잔여+유효기간을 함께 표기한다", () => {
+    const cycle = activeSolo({ totalCount: 8, usedCount: 3, validEndDate: "2026-09-15" });
+    expect(soloStatusText(cycle, new Date("2026-07-14T12:00:00+09:00"))).toEqual({
+      text: "잔여 5회 · 유효기간 2026.09.15",
+      tone: "muted"
+    });
+  });
+
+  it("개인레슨: 유효기간 7일 이내면 결제 임박 + D-Day로 강조한다", () => {
+    const cycle = activeSolo({ totalCount: 8, usedCount: 3, validEndDate: "2026-07-18" });
+    expect(soloStatusText(cycle, new Date("2026-07-14T12:00:00+09:00"))).toEqual({
+      text: "결제 임박 · 잔여 5회 · D-4",
+      tone: "danger"
+    });
+  });
+
+  it("개인레슨: 잔여 1회 이하면 유효기간이 남아 있어도 결제 임박으로 표기한다", () => {
+    const cycle = activeSolo({ totalCount: 8, usedCount: 7, validEndDate: "2026-12-31" });
+    expect(soloStatusText(cycle, new Date("2026-07-14T12:00:00+09:00")).text).toBe("결제 임박 · 잔여 1회");
+  });
+
+  it("단체레슨: 평상시엔 잔여+유효기간을 함께 표기한다", () => {
+    const cycle: CycleLike = {
+      kind: "group",
+      enrollmentStatus: "active",
+      cycleStatus: "active",
+      totalCount: 8,
+      usedCount: 3,
+      nextDueDate: "2026-08-18"
+    };
+    expect(groupStatusText(cycle, new Date("2026-07-14T12:00:00+09:00"))).toEqual({
+      text: "잔여 5회 · 유효기간 2026.08.18",
+      tone: "muted"
+    });
+  });
+
+  it("단체레슨: 결제 예정일 7일 이내면 결제 임박 + D-Day로 강조한다", () => {
+    const cycle: CycleLike = {
+      kind: "group",
+      enrollmentStatus: "active",
+      cycleStatus: "active",
+      totalCount: 8,
+      usedCount: 3,
+      nextDueDate: "2026-07-21"
+    };
+    expect(groupStatusText(cycle, new Date("2026-07-14T12:00:00+09:00"))).toEqual({
+      text: "결제 임박 · 잔여 5회 · D-7",
+      tone: "warning"
+    });
+  });
+});
+
+describe("고정 기간형(fixed-term) 판정 — 스타터 패키지 단체 절반용", () => {
+  it("kind='solo'는 항상 고정 기간형이다", () => {
+    expect(isFixedTermCycle(activeSolo())).toBe(true);
+  });
+
+  it("kind='group'은 isFixedTerm이 없으면 반복결제형이다", () => {
+    const cycle: CycleLike = {
+      kind: "group",
+      enrollmentStatus: "active",
+      cycleStatus: "active",
+      totalCount: 4,
+      usedCount: 0,
+      nextDueDate: null
+    };
+    expect(isFixedTermCycle(cycle)).toBe(false);
+  });
+
+  it("kind='group'이라도 isFixedTerm=true면 validEndDate+잔여 기준으로 danger를 판정한다", () => {
+    const packageGroupCycle: CycleLike = {
+      kind: "group",
+      enrollmentStatus: "active",
+      cycleStatus: "active",
+      totalCount: 4,
+      usedCount: 0,
+      nextDueDate: null,
+      validEndDate: "2026-07-13",
+      isFixedTerm: true
+    };
+    expect(isFixedTermCycle(packageGroupCycle)).toBe(true);
+    expect(cycleStatus(packageGroupCycle, new Date("2026-07-14T12:00:00+09:00"))).toBe("danger");
+  });
+
+  it("kind='group' + isFixedTerm=true는 nextDueDate가 없어도 결제 예정으로 오판하지 않는다", () => {
+    const packageGroupCycle: CycleLike = {
+      kind: "group",
+      enrollmentStatus: "active",
+      cycleStatus: "active",
+      totalCount: 4,
+      usedCount: 1,
+      nextDueDate: null,
+      validEndDate: "2026-08-01",
+      isFixedTerm: true
+    };
+    expect(cycleStatus(packageGroupCycle, new Date("2026-07-14T12:00:00+09:00"))).toBeNull();
   });
 });
 

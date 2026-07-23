@@ -300,6 +300,185 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     ).toBeNull();
   });
 
+  it("스타터 패키지는 개인 2회와 단체 4회를 한 결제 원장으로 원자 생성한다", async () => {
+    const memberId = await createMember("스타터패키지");
+    const created = await authenticated
+      .rpc("create_starter_package_atomic", {
+        p_member_id: memberId,
+        p_class_name: `${prefix}_반`,
+        p_schedule_ids: [mondayId, wednesdayId],
+        p_amount: 250000,
+        p_method: "card",
+        p_payment_date: "2026-07-14"
+      })
+      .single();
+
+    expect(created.error).toBeNull();
+    const row = created.data as {
+      package_id: string;
+      solo_enrollment_id: string;
+      solo_cycle_id: string;
+      group_enrollment_id: string;
+      group_cycle_id: string;
+    };
+    const { data: packageRow } = await authenticated
+      .from("enrollment_packages")
+      .select("member_id, valid_weeks, amount, status")
+      .eq("id", row.package_id)
+      .single();
+    expect(packageRow).toEqual({ member_id: memberId, valid_weeks: 3, amount: 250000, status: "active" });
+
+    const { data: enrollments } = await authenticated
+      .from("enrollments")
+      .select("id, kind, package_id")
+      .eq("package_id", row.package_id)
+      .order("kind");
+    expect(enrollments).toEqual([
+      { id: row.group_enrollment_id, kind: "group", package_id: row.package_id },
+      { id: row.solo_enrollment_id, kind: "solo", package_id: row.package_id }
+    ]);
+
+    const { data: cycles } = await authenticated
+      .from("enrollment_cycles")
+      .select("id, total_count, used_count, first_class_date, valid_end_date")
+      .in("id", [row.solo_cycle_id, row.group_cycle_id])
+      .order("total_count");
+    expect(cycles).toEqual([
+      {
+        id: row.solo_cycle_id,
+        total_count: 2,
+        used_count: 0,
+        first_class_date: null,
+        valid_end_date: null
+      },
+      {
+        id: row.group_cycle_id,
+        total_count: 4,
+        used_count: 0,
+        first_class_date: null,
+        valid_end_date: null
+      }
+    ]);
+
+    const { count: paymentCount } = await authenticated
+      .from("payments")
+      .select("*", { count: "exact", head: true })
+      .in("cycle_id", [row.solo_cycle_id, row.group_cycle_id]);
+    expect(paymentCount).toBe(0);
+  });
+
+  it("스타터 패키지는 개인·단체 중 가장 이른 수업일부터 공통 3주 유효기간을 다시 계산한다", async () => {
+    const memberId = await createMember("패키지유효기간");
+    const created = await authenticated
+      .rpc("create_starter_package_atomic", {
+        p_member_id: memberId,
+        p_class_name: `${prefix}_반`,
+        p_schedule_ids: [mondayId],
+        p_amount: 250000,
+        p_method: "transfer",
+        p_payment_date: "2026-07-14"
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const row = created.data as { solo_cycle_id: string; group_cycle_id: string };
+
+    expect(
+      (
+        await authenticated.rpc("save_attendance_atomic", {
+          p_date: "2026-07-20",
+          p_records: [{ cycleId: row.group_cycle_id, scheduleId: mondayId, attended: true }]
+        })
+      ).error
+    ).toBeNull();
+    expect(
+      (
+        await authenticated.rpc("record_solo_session_atomic", {
+          p_cycle_id: row.solo_cycle_id,
+          p_session_index: 1,
+          p_date: "2026-07-18",
+          p_expired: false,
+          p_note: "테스트"
+        })
+      ).error
+    ).toBeNull();
+
+    const readValidity = () =>
+      authenticated
+        .from("enrollment_cycles")
+        .select("id, first_class_date, valid_end_date")
+        .in("id", [row.solo_cycle_id, row.group_cycle_id])
+        .order("id");
+    expect((await readValidity()).data).toEqual([
+      expect.objectContaining({ first_class_date: "2026-07-18", valid_end_date: "2026-08-08" }),
+      expect.objectContaining({ first_class_date: "2026-07-18", valid_end_date: "2026-08-08" })
+    ]);
+
+    expect(
+      (
+        await authenticated.rpc("delete_solo_session_atomic", {
+          p_cycle_id: row.solo_cycle_id,
+          p_session_index: 1
+        })
+      ).error
+    ).toBeNull();
+    expect((await readValidity()).data).toEqual([
+      expect.objectContaining({ first_class_date: "2026-07-20", valid_end_date: "2026-08-10" }),
+      expect.objectContaining({ first_class_date: "2026-07-20", valid_end_date: "2026-08-10" })
+    ]);
+  });
+
+  it("스타터 패키지가 정원을 초과하면 패키지와 두 수강권을 모두 롤백한다", async () => {
+    const capacityName = `${prefix}_패키지정원반`;
+    const { data: capacityClass } = await authenticated
+      .from("classes")
+      .insert({ name: capacityName, capacity: 1, active: true })
+      .select("id")
+      .single();
+    createdClasses.push(capacityClass!.id);
+    const { data: capacitySchedule } = await authenticated
+      .from("class_schedules")
+      .insert({ class_id: capacityClass!.id, weekday: 2, curriculum_group: "A" })
+      .select("id")
+      .single();
+
+    const existingMemberId = await createMember("패키지정원기존");
+    expect(
+      (
+        await authenticated.rpc("create_enrollment_with_cycle_atomic", {
+          p_member_id: existingMemberId,
+          p_kind: "group",
+          p_plan: null,
+          p_class_name: capacityName,
+          p_schedule_ids: [capacitySchedule!.id],
+          p_amount: 160000,
+          p_method: "card",
+          p_payment_date: "2026-07-14"
+        })
+      ).error
+    ).toBeNull();
+
+    const blockedMemberId = await createMember("패키지정원초과");
+    const blocked = await authenticated.rpc("create_starter_package_atomic", {
+      p_member_id: blockedMemberId,
+      p_class_name: capacityName,
+      p_schedule_ids: [capacitySchedule!.id],
+      p_amount: 250000,
+      p_method: "card",
+      p_payment_date: "2026-07-14"
+    });
+    expect(blocked.error?.message).toContain("CLASS_CAPACITY_EXCEEDED");
+
+    const [{ count: packageCount }, { count: enrollmentCount }] = await Promise.all([
+      authenticated
+        .from("enrollment_packages")
+        .select("*", { count: "exact", head: true })
+        .eq("member_id", blockedMemberId),
+      authenticated.from("enrollments").select("*", { count: "exact", head: true }).eq("member_id", blockedMemberId)
+    ]);
+    expect(packageCount).toBe(0);
+    expect(enrollmentCount).toBe(0);
+  });
+
   it("재등록 도중 결제 검증 실패 시 기존 active cycle을 그대로 보존한다", async () => {
     const memberId = await createMember("재등록실패");
     const created = await authenticated

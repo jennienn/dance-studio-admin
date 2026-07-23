@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   const { data: cycles, error } = await supabase
     .from("enrollment_cycles")
     .select(
-      "*, enrollments!inner(id, status, class_id, members(id, name)), cycle_schedules(schedule_id), attendance_logs(id, schedule_id, date, attended)"
+      "*, enrollments!inner(id, status, class_id, package_id, members(id, name)), cycle_schedules(schedule_id), attendance_logs(id, schedule_id, date, attended)"
     )
     .eq("status", "active")
     .eq("enrollments.status", "active")
@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
       cycleStatus: c.status,
       totalCount: c.total_count,
       usedCount: c.used_count,
-      nextDueDate: c.next_due_date
+      validEndDate: c.valid_end_date,
+      nextDueDate: c.next_due_date,
+      isFixedTerm: c.enrollments.package_id != null
     };
     return {
       cycleId: c.id,

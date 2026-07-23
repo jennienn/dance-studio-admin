@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
   // 최상위 결과에서도 제외된다 (!inner 없이는 nested 배열만 걸러지고 회원 자체는 그대로 남는다).
   const needsInnerJoin = isKindFilter || statusFilter === "active";
   const enrollmentsSelect = needsInnerJoin
-    ? "enrollments!inner(id, kind, status, class_id, classes(name), enrollment_cycles(*))"
-    : "enrollments(id, kind, status, class_id, classes(name), enrollment_cycles(*))";
+    ? "enrollments!inner(id, kind, status, class_id, package_id, classes(name), enrollment_cycles(*))"
+    : "enrollments(id, kind, status, class_id, package_id, classes(name), enrollment_cycles(*))";
 
   let query = supabase
     .from("members")

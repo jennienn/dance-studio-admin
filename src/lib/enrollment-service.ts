@@ -26,6 +26,31 @@ interface AtomicEnrollmentRow {
   cycle_id: string;
 }
 
+export interface StarterPackageCreationInput {
+  className: string;
+  scheduleIds: number[];
+  payment: { amount: number; method: "card" | "transfer" | "cash"; paymentDate: string };
+}
+
+export type StarterPackageCreationResult =
+  | {
+      ok: true;
+      packageId: string;
+      soloEnrollmentId: string;
+      soloCycleId: string;
+      groupEnrollmentId: string;
+      groupCycleId: string;
+    }
+  | EnrollmentCreationFailure;
+
+interface AtomicStarterPackageRow {
+  package_id: string;
+  solo_enrollment_id: string;
+  solo_cycle_id: string;
+  group_enrollment_id: string;
+  group_cycle_id: string;
+}
+
 function rpcFailure(error: { message: string; code?: string }): EnrollmentCreationFailure {
   const isCapacity = error.message.includes("CLASS_CAPACITY_EXCEEDED");
   const isValidation = error.message.includes("VALIDATION_ERROR") || error.code === "22023";
@@ -58,6 +83,34 @@ export async function createEnrollmentWithCycle(
   if (error || !data) return rpcFailure(error ?? { message: "DB_ERROR: 생성 결과가 없습니다." });
   const row = data as AtomicEnrollmentRow;
   return { ok: true, enrollmentId: row.enrollment_id, cycleId: row.cycle_id };
+}
+
+export async function createStarterPackage(
+  supabase: Supabase,
+  memberId: number,
+  input: StarterPackageCreationInput
+): Promise<StarterPackageCreationResult> {
+  const { data, error } = await supabase
+    .rpc("create_starter_package_atomic", {
+      p_member_id: memberId,
+      p_class_name: input.className,
+      p_schedule_ids: input.scheduleIds,
+      p_amount: input.payment.amount,
+      p_method: input.payment.method,
+      p_payment_date: input.payment.paymentDate
+    })
+    .single();
+
+  if (error || !data) return rpcFailure(error ?? { message: "DB_ERROR: 생성 결과가 없습니다." });
+  const row = data as AtomicStarterPackageRow;
+  return {
+    ok: true,
+    packageId: row.package_id,
+    soloEnrollmentId: row.solo_enrollment_id,
+    soloCycleId: row.solo_cycle_id,
+    groupEnrollmentId: row.group_enrollment_id,
+    groupCycleId: row.group_cycle_id
+  };
 }
 
 export function mapEnrollmentRpcError(error: { message: string; code?: string }): EnrollmentCreationFailure {

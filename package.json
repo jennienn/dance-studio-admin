@@ -18,6 +18,7 @@
     "test:seed": "TEST_MODE=true tsx scripts/test-seed.ts",
     "test:cleanup": "TEST_MODE=true tsx scripts/test-cleanup.ts",
     "demo:seed": "tsx scripts/demo-seed.ts",
+    "notifications:check": "node scripts/check-notification-readiness.mjs",
     "test:all": "npm run test && npm run test:integration && npm run test:e2e"
   },
   "dependencies": {

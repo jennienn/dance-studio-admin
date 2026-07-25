@@ -36,8 +36,8 @@ cp .env.example .env.local
 클라이언트 코드에 노출되면 안 됩니다 (서버 전용).
 
 ### 3. DB 마이그레이션 적용
-Supabase 대시보드의 SQL Editor에 `supabase/migrations/0001_init.sql` 내용을 그대로 붙여넣고 실행하세요.
-(또는 Supabase CLI가 설치되어 있다면 `supabase db push`)
+새 로컬 또는 테스트 DB에는 `supabase/migrations`의 마이그레이션을 번호순으로 적용하세요.
+운영 DB에는 `0001_init.sql`을 다시 실행하지 말고 현재 적용 이력을 확인한 뒤 누락된 마이그레이션만 적용해야 합니다.
 
 이 마이그레이션은 테이블/트리거/RLS 정책뿐 아니라, 현재 운영 중인 두 반(kpop반, 다이어트 댄스반)과
 요일 스케줄까지 초기 데이터로 함께 넣어줍니다.
@@ -53,22 +53,28 @@ npm run dev
 ```
 `http://localhost:3000`으로 접속하면 `/login`으로 리다이렉트됩니다. 4번에서 만든 계정으로 로그인하세요.
 
-## 아직 구현 안 된 부분 (다음 작업)
+## SOLAPI 알림톡 운영 준비
 
-- **화면(UI)**: `src/app/page.tsx`는 임시 안내 문구만 있습니다. 프로토타입(index.html)의 홈/오늘수업/회원/단체출석
-  화면을 React 컴포넌트로 옮기고, 지금 만든 API 라우트들을 `fetch`로 연결하는 작업이 남아있습니다.
-- **알림톡 실연동**: `sendNotification()` 함수(여러 API 라우트에 TODO로 표시됨)가 항상 성공만 반환하는
-  더미 상태입니다. SOLAPI 등 발송 대행사 API 키를 받으면 이 함수만 교체하면 됩니다.
-- **환불 정책**: `/api/payments/[id]/refund`는 결제 금액만 기록하고 있고, 환불 시 해당 enrollment_cycle을
-  어떻게 처리할지는 아직 정책이 확정되지 않아 TODO로 남겨뒀습니다 (요구사항명세서 확인 후 반영 필요).
-- **Vercel Cron 등록**: `vercel.json`에 스케줄은 넣어뒀지만, Vercel 프로젝트 환경변수에 `CRON_SECRET`을
-  실제로 등록해야 동작합니다.
+개인·단체 등록 완료 알림과 결제 임박 알림의 SOLAPI 연동, 발송 이력, 중복 방지 및 매일 실행되는
+Vercel Cron 경로가 구현되어 있습니다. 템플릿 승인 전에는 실제 고객 번호로 발송하지 마세요.
+
+1. `supabase/migrations/0006_real_notification_delivery.sql` 적용 여부를 확인합니다.
+2. `.env.example`에 나열된 SOLAPI·카카오·Cron 환경변수를 로컬과 Vercel에 등록합니다.
+3. `npm run notifications:check`로 값의 누락, 예시 값, 중복 템플릿 ID를 검사합니다.
+4. 카카오 검수 승인 후 내부 번호로 아래 네 가지 템플릿을 각각 한 번씩 확인합니다.
+   - 개인레슨 등록 완료
+   - 단체레슨 등록 완료
+   - 개인레슨 잔여 1회
+   - 단체레슨 결제 1주 전
+5. 같은 cycle과 알림 종류의 재호출이 중복 발송되지 않는지 확인합니다.
+
+점검 명령은 환경변수의 실제 값을 출력하거나 SOLAPI에 네트워크 요청을 보내지 않습니다.
 
 ## 배포
 
 1. GitHub에 이 프로젝트를 push
 2. Vercel에서 해당 repo를 import (Pro 플랜 필요 — 상업적 서비스는 Hobby 플랜 이용약관상 불가)
-3. Vercel 프로젝트 환경변수에 `.env.local`과 동일한 값 + `CRON_SECRET` 등록
+3. Vercel 프로젝트 환경변수에 운영용 Supabase 및 알림톡 값과 무작위 `CRON_SECRET` 등록
 4. 배포 후 Vercel 프로젝트 설정 → Cron Jobs에서 `/api/internal/notifications/run`이 매일 등록되어 있는지 확인
 
 ## 자동 테스트

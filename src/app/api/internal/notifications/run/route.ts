@@ -8,7 +8,22 @@ import { deliverCycleNotification } from "@/lib/notification-service";
 // `Authorization: Bearer {CRON_SECRET}` 헤더를 붙여 GET 요청을 보낸다 (Vercel 공식 규약).
 export const dynamic = "force-dynamic";
 
-function toCycleLike(row: any): CycleLike {
+interface NotificationCandidate {
+  id: string;
+  status: "active" | "completed" | "expired";
+  plan: 4 | 8 | 12 | null;
+  total_count: number;
+  used_count: number;
+  valid_end_date: string | null;
+  next_due_date: string | null;
+  enrollments: {
+    kind: "solo" | "group";
+    status: "active" | "ended";
+    package_id: string | null;
+  };
+}
+
+function toCycleLike(row: NotificationCandidate): CycleLike {
   return {
     kind: row.enrollments.kind,
     enrollmentStatus: row.enrollments.status,
@@ -46,7 +61,8 @@ export async function GET(request: NextRequest) {
   let failed = 0;
   let skipped = 0;
 
-  for (const row of data ?? []) {
+  for (const candidate of data ?? []) {
+    const row = candidate as unknown as NotificationCandidate;
     const like = toCycleLike(row);
     const eligible = cycleStatus(like) === "danger";
 

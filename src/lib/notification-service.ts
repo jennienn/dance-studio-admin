@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildNotificationMessage, type CycleLike } from "./business-rules";
+import { formatDisplayDate, remainOf, WEEKS_BY_PLAN } from "./business-rules";
 import { sendSolapiAlimtalk } from "./solapi";
 
 export type NotificationTrigger = "auto" | "registration" | "manual_renew" | "manual_resend";
@@ -9,12 +9,14 @@ export type NotificationDeliveryResult =
   | { status: "failed"; code: string; message: string }
   | { status: "skipped"; reason: string };
 
-interface NotificationCycleRow {
+export interface NotificationCycleRow {
   id: string;
   status: "active" | "completed" | "expired";
   plan: 4 | 8 | 12 | null;
+  base_count: number;
   total_count: number;
   used_count: number;
+  payment_date: string;
   valid_end_date: string | null;
   next_due_date: string | null;
   enrollments: {
@@ -23,6 +25,7 @@ interface NotificationCycleRow {
     package_id: string | null;
     members: { name: string; phone: string };
     classes: { name: string } | null;
+    enrollment_packages: { valid_weeks: number } | null;
   };
 }
 
@@ -36,31 +39,115 @@ function templateIdFor(row: NotificationCycleRow, trigger: NotificationTrigger):
   );
 }
 
-function messageFor(row: NotificationCycleRow, trigger: NotificationTrigger) {
-  const className = row.enrollments.classes?.name ?? "단체레슨";
-  if (trigger === "auto") {
-    const like: CycleLike = {
-      kind: row.enrollments.kind,
-      enrollmentStatus: row.enrollments.status,
-      cycleStatus: row.status,
-      plan: row.plan,
-      totalCount: row.total_count,
-      usedCount: row.used_count,
-      validEndDate: row.valid_end_date,
-      nextDueDate: row.next_due_date,
-      isFixedTerm: row.enrollments.package_id != null
-    };
-    return buildNotificationMessage({ ...like, className });
-  }
-  return row.enrollments.kind === "solo"
-    ? `개인레슨 ${row.total_count}회 등록 및 결제가 완료되었습니다.`
-    : `${className} 등록 및 결제가 완료되었습니다.`;
+function dateOrPending(value: string | null): string {
+  return value ? formatDisplayDate(value) : "첫 수업 후 확정";
 }
 
-function variablesFor(row: NotificationCycleRow): Record<string, string> {
-  return row.enrollments.kind === "solo"
-    ? { "#{총횟수}": String(row.total_count) }
-    : { "#{수업명}": row.enrollments.classes?.name ?? "단체레슨" };
+function validWeeksFor(row: NotificationCycleRow): number {
+  if (row.plan) return WEEKS_BY_PLAN[row.plan];
+  return row.enrollments.enrollment_packages?.valid_weeks ?? 0;
+}
+
+export function messageFor(row: NotificationCycleRow, trigger: NotificationTrigger): string {
+  const memberName = row.enrollments.members.name;
+  const className = row.enrollments.classes?.name ?? "단체레슨";
+  if (trigger === "auto") {
+    if (row.enrollments.kind === "solo") {
+      return `[엘라노르 댄스학원] 개인레슨 잔여 횟수 안내
+
+안녕하세요, ${memberName}님!
+엘라노르 댄스학원입니다. ✨
+
+회원님의 개인레슨 수강권 잔여 횟수를 안내해 드립니다.
+
+• 수강 과목: 개인레슨
+• 현재 잔여 횟수: ${remainOf({ totalCount: row.total_count, usedCount: row.used_count })}회 / ${row.total_count}회
+• 만료 예정일: ${dateOrPending(row.valid_end_date)}
+
+원활한 레슨 일정을 위해, 잔여 횟수가 소진되기 전 미리 재등록을 부탁드립니다.
+
+궁금하신 점은 언제든 편하게 문의해 주세요! 오늘도 좋은 하루 보내세요. 💛`;
+    }
+    const endDate = row.enrollments.package_id ? row.valid_end_date : row.next_due_date;
+    return `[엘라노르 댄스학원] 수강권 만료 예정 안내
+
+안녕하세요, ${memberName}님!
+엘라노르 댄스학원입니다. ✨
+
+회원님께서 수강 중이신 ${className} 클래스 수강권이 1주일 후 만료될 예정입니다.
+
+• 수강 클래스: ${className}
+• 만료 예정일: ${dateOrPending(endDate)}
+
+다음 달 수강 인원 확인을 위해, 1주일 이내(만료일 전까지) 재등록 및 결제 진행을 부탁드립니다.
+
+궁금하신 점은 언제든 편하게 문의해 주세요! 오늘도 좋은 하루 보내세요. 💛`;
+  }
+  if (row.enrollments.kind === "solo") {
+    return `[엘라노르 댄스학원] 개인레슨 등록 완료 안내
+
+안녕하세요, ${memberName}님!
+엘라노르 댄스학원입니다. ✨
+
+회원님의 개인레슨 수강 등록 및 결제가 정상적으로 완료되었습니다.
+
+• 수강 과목: 개인레슨
+• 등록 횟수: 총 ${row.base_count}회
+• 수강 유효기간: 첫 수업일로부터 ${validWeeksFor(row)}주 이내
+
+📌 개인레슨 수강권은 첫 수업 시작일을 기준으로 ${validWeeksFor(row)}주 이내에 사용해 주시면 됩니다.
+
+회원님께 맞춘 알찬 레슨으로 정성껏 준비하겠습니다. 첫 레슨 날 뵙겠습니다! 💛`;
+  }
+  const endDate = row.enrollments.package_id ? row.valid_end_date : row.next_due_date;
+  return `[엘라노르 댄스학원] 단체레슨 등록 완료 안내
+
+안녕하세요, ${memberName}님!
+엘라노르 댄스학원입니다. ✨
+
+요청하신 클래스의 수강 등록 및 결제가 정상적으로 완료되었습니다.
+
+• 수강 클래스: ${className}
+• 수강 기간: ${formatDisplayDate(row.payment_date)} ~ ${dateOrPending(endDate)}
+
+이번 수강 기간도 알차고 즐겁게 함께해요! 수업 날 뵙겠습니다. 💛`;
+}
+
+export function variablesFor(
+  row: NotificationCycleRow,
+  trigger: NotificationTrigger
+): Record<string, string> {
+  const common = { "#{회원명}": row.enrollments.members.name };
+  if (trigger === "auto" && row.enrollments.kind === "solo") {
+    return {
+      ...common,
+      "#{잔여횟수}": String(remainOf({ totalCount: row.total_count, usedCount: row.used_count })),
+      "#{총횟수}": String(row.total_count),
+      "#{만료예정일}": dateOrPending(row.valid_end_date)
+    };
+  }
+  if (trigger === "auto") {
+    const endDate = row.enrollments.package_id ? row.valid_end_date : row.next_due_date;
+    return {
+      ...common,
+      "#{수업명}": row.enrollments.classes?.name ?? "단체레슨",
+      "#{만료예정일}": dateOrPending(endDate)
+    };
+  }
+  if (row.enrollments.kind === "solo") {
+    return {
+      ...common,
+      "#{등록횟수}": String(row.base_count),
+      "#{유효주수}": String(validWeeksFor(row))
+    };
+  }
+  const endDate = row.enrollments.package_id ? row.valid_end_date : row.next_due_date;
+  return {
+    ...common,
+    "#{수업명}": row.enrollments.classes?.name ?? "단체레슨",
+    "#{수강시작일}": formatDisplayDate(row.payment_date),
+    "#{수강종료일}": dateOrPending(endDate)
+  };
 }
 
 async function deliverCycleNotificationInternal(
@@ -81,7 +168,7 @@ async function deliverCycleNotificationInternal(
   const { data, error } = await supabase
     .from("enrollment_cycles")
     .select(
-      "id, status, plan, total_count, used_count, valid_end_date, next_due_date, enrollments!inner(kind, status, package_id, members(name, phone), classes(name))"
+      "id, status, plan, base_count, total_count, used_count, payment_date, valid_end_date, next_due_date, enrollments!inner(kind, status, package_id, members(name, phone), classes(name), enrollment_packages(valid_weeks))"
     )
     .eq("id", cycleId)
     .single();
@@ -95,7 +182,7 @@ async function deliverCycleNotificationInternal(
     to: row.enrollments.members.phone,
     text: message,
     templateId: templateIdFor(row, trigger),
-    variables: variablesFor(row)
+    variables: variablesFor(row, trigger)
   });
   const now = new Date().toISOString();
 

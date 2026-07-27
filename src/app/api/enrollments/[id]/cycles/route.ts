@@ -46,7 +46,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let notification: "sent" | "failed" | "none" = "none";
   if (body.sendNotification) {
     const delivery = await deliverCycleNotification(supabase, row.cycle_id, "manual_renew");
-    notification = delivery.status === "sent" || delivery.status === "skipped" ? "sent" : "failed";
+    notification =
+      delivery.status === "sent" || delivery.status === "skipped"
+        ? "sent"
+        : delivery.status === "disabled"
+          ? "none"
+          : "failed";
   }
   return NextResponse.json({ cycleId: row.cycle_id, totalCount: row.total_count, notification }, { status: 201 });
 }

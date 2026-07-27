@@ -153,7 +153,12 @@ export async function POST(request: NextRequest) {
   let notification: "sent" | "failed" | "none" = "none";
   if (enrollment.sendNotification) {
     const delivery = await deliverCycleNotification(supabase, row.cycle_id, "registration");
-    notification = delivery.status === "sent" || delivery.status === "skipped" ? "sent" : "failed";
+    notification =
+      delivery.status === "sent" || delivery.status === "skipped"
+        ? "sent"
+        : delivery.status === "disabled"
+          ? "none"
+          : "failed";
   }
   return NextResponse.json(
     { memberId: row.member_id, enrollmentId: row.enrollment_id, cycleId: row.cycle_id, notification },

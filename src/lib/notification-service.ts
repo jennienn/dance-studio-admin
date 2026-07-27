@@ -1,12 +1,14 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatDisplayDate, remainOf, WEEKS_BY_PLAN } from "./business-rules";
+import { notificationsEnabled } from "./notification-config";
 import { sendSolapiAlimtalk } from "./solapi";
 
 export type NotificationTrigger = "auto" | "registration" | "manual_renew" | "manual_resend";
 export type NotificationDeliveryResult =
   | { status: "sent"; providerMessageId: string | null }
   | { status: "failed"; code: string; message: string }
+  | { status: "disabled"; reason: string }
   | { status: "skipped"; reason: string };
 
 export interface NotificationCycleRow {
@@ -212,6 +214,9 @@ export async function deliverCycleNotification(
   cycleId: string,
   trigger: NotificationTrigger
 ): Promise<NotificationDeliveryResult> {
+  if (!notificationsEnabled()) {
+    return { status: "disabled", reason: "알림톡 템플릿 검수 중으로 발송이 잠겨 있습니다." };
+  }
   try {
     return await deliverCycleNotificationInternal(supabase, cycleId, trigger);
   } catch {

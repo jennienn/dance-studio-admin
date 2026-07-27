@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import { apiFetch } from "@/lib/api-client";
+import { notificationsEnabled } from "@/lib/notification-config";
 
 function addWeeks(dateStr: string, weeks: number) {
   const d = new Date(dateStr);
@@ -29,7 +30,8 @@ export function RenewGroupModal({
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"card" | "transfer" | "cash">("card");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [sendNotification, setSendNotification] = useState(true);
+  const notificationEnabled = notificationsEnabled();
+  const [sendNotification, setSendNotification] = useState(notificationEnabled);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,9 +98,10 @@ export function RenewGroupModal({
           type="checkbox"
           checked={sendNotification}
           onChange={(e) => setSendNotification(e.target.checked)}
+          disabled={!notificationEnabled}
           style={{ width: "auto" }}
         />
-        <span>재등록 완료 알림톡 발송</span>
+        <span>{notificationEnabled ? "재등록 완료 알림톡 발송" : "알림톡 템플릿 검수 중"}</span>
       </div>
 
       {error && <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{error}</p>}

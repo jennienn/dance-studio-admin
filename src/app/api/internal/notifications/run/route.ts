@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { cycleStatus, type CycleLike } from "@/lib/business-rules";
 import { deliverCycleNotification } from "@/lib/notification-service";
+import { notificationsEnabled } from "@/lib/notification-config";
 
 // Vercel Cron이 매일 호출. CRON_SECRET 환경변수를 설정해두면 Vercel이 자동으로
 // `Authorization: Bearer {CRON_SECRET}` 헤더를 붙여 GET 요청을 보낸다 (Vercel 공식 규약).
@@ -41,6 +42,9 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "인증 실패" } }, { status: 401 });
+  }
+  if (!notificationsEnabled()) {
+    return NextResponse.json({ disabled: true, checked: 0, sent: 0, failed: 0, skipped: 0 });
   }
 
   const supabase = createSupabaseAdminClient();

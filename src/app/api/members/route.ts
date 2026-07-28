@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
 import { deliverCycleNotification } from "@/lib/notification-service";
-import { isValidMemberPhone, PHONE_FORMAT_MESSAGE } from "@/lib/phone";
+import {
+  DUPLICATE_PHONE_MESSAGE,
+  isValidMemberPhone,
+  PHONE_FORMAT_MESSAGE
+} from "@/lib/phone";
 
 // 활성 수강권(enrollment.status='active')이 하나도 없는 회원 id 목록.
 // PostgREST 임베드 필터는 "하나라도 일치하는 회원"만 걸러낼 수 있고 "전부 불일치"는 표현할 수 없어서,
@@ -94,9 +98,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const { data: existingMember, error: duplicateCheckError } = await supabase
+    .from("members")
+    .select("id")
+    .eq("phone", phone)
+    .limit(1)
+    .maybeSingle();
+  if (duplicateCheckError) {
+    return NextResponse.json(
+      { error: { code: "DB_ERROR", message: duplicateCheckError.message } },
+      { status: 500 }
+    );
+  }
+  if (existingMember) {
+    return NextResponse.json(
+      { error: { code: "DUPLICATE_PHONE", message: DUPLICATE_PHONE_MESSAGE } },
+      { status: 409 }
+    );
+  }
+
   if (!enrollment) {
     const { data: member, error } = await supabase.from("members").insert({ name, phone }).select("id").single();
     if (error || !member) {
+      if (
+        error?.code === "23505" &&
+        (error.message.includes("members_phone") || error.message.includes("members_phone_digits"))
+      ) {
+        return NextResponse.json(
+          { error: { code: "DUPLICATE_PHONE", message: DUPLICATE_PHONE_MESSAGE } },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: { code: "DB_ERROR", message: error?.message ?? "회원 생성 실패" } }, { status: 500 });
     }
     return NextResponse.json({ memberId: member.id, enrollmentId: null, cycleId: null }, { status: 201 });

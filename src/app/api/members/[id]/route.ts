@@ -1,7 +1,11 @@
 // src/app/api/members/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isValidMemberPhone, PHONE_FORMAT_MESSAGE } from "@/lib/phone";
+import {
+  DUPLICATE_PHONE_MESSAGE,
+  isValidMemberPhone,
+  PHONE_FORMAT_MESSAGE
+} from "@/lib/phone";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,8 +43,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     );
   }
 
+  const { data: existingMember, error: duplicateCheckError } = await supabase
+    .from("members")
+    .select("id")
+    .eq("phone", phone)
+    .neq("id", id)
+    .limit(1)
+    .maybeSingle();
+  if (duplicateCheckError) {
+    return NextResponse.json(
+      { error: { code: "DB_ERROR", message: duplicateCheckError.message } },
+      { status: 500 }
+    );
+  }
+  if (existingMember) {
+    return NextResponse.json(
+      { error: { code: "DUPLICATE_PHONE", message: DUPLICATE_PHONE_MESSAGE } },
+      { status: 409 }
+    );
+  }
+
   const { error } = await supabase.from("members").update({ name, phone }).eq("id", id);
   if (error) {
+    if (
+      error.code === "23505" &&
+      (error.message.includes("members_phone") || error.message.includes("members_phone_digits"))
+    ) {
+      return NextResponse.json(
+        { error: { code: "DUPLICATE_PHONE", message: DUPLICATE_PHONE_MESSAGE } },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: { code: "DB_ERROR", message: error.message } }, { status: 500 });
   }
   return NextResponse.json({ ok: true });

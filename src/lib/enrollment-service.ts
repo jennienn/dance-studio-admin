@@ -53,12 +53,23 @@ interface AtomicStarterPackageRow {
 
 function rpcFailure(error: { message: string; code?: string }): EnrollmentCreationFailure {
   const isCapacity = error.message.includes("CLASS_CAPACITY_EXCEEDED");
+  const isDuplicatePhone =
+    error.code === "23505" &&
+    (error.message.includes("members_phone") || error.message.includes("members_phone_digits"));
   const isValidation = error.message.includes("VALIDATION_ERROR") || error.code === "22023";
   return {
     ok: false,
-    status: isCapacity ? 409 : isValidation ? 422 : 500,
-    code: isCapacity ? "CLASS_CAPACITY_EXCEEDED" : isValidation ? "VALIDATION_ERROR" : "DB_ERROR",
-    message: error.message
+    status: isCapacity || isDuplicatePhone ? 409 : isValidation ? 422 : 500,
+    code: isCapacity
+      ? "CLASS_CAPACITY_EXCEEDED"
+      : isDuplicatePhone
+        ? "DUPLICATE_PHONE"
+        : isValidation
+          ? "VALIDATION_ERROR"
+          : "DB_ERROR",
+    message: isDuplicatePhone
+      ? "이미 등록된 연락처입니다. 기존 회원에서 수강권을 추가해주세요."
+      : error.message
   };
 }
 

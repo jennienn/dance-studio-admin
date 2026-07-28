@@ -1,4 +1,6 @@
 export const PHONE_FORMAT_MESSAGE = "연락처는 010-0000-0000 형식으로 입력해주세요.";
+export const DUPLICATE_PHONE_MESSAGE =
+  "이미 등록된 연락처입니다. 기존 회원에서 수강권을 추가해주세요.";
 
 export function formatPhoneInput(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);

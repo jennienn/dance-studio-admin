@@ -1,6 +1,7 @@
 // src/app/api/members/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isValidMemberPhone, PHONE_FORMAT_MESSAGE } from "@/lib/phone";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,6 +29,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!name || !phone) {
     return NextResponse.json(
       { error: { code: "VALIDATION_ERROR", message: "이름과 연락처를 입력해주세요." } },
+      { status: 422 }
+    );
+  }
+  if (!isValidMemberPhone(phone)) {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: PHONE_FORMAT_MESSAGE } },
       { status: 422 }
     );
   }

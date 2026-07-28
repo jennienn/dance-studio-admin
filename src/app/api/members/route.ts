@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { mapEnrollmentRpcError } from "@/lib/enrollment-service";
 import { deliverCycleNotification } from "@/lib/notification-service";
+import { isValidMemberPhone, PHONE_FORMAT_MESSAGE } from "@/lib/phone";
 
 // 활성 수강권(enrollment.status='active')이 하나도 없는 회원 id 목록.
 // PostgREST 임베드 필터는 "하나라도 일치하는 회원"만 걸러낼 수 있고 "전부 불일치"는 표현할 수 없어서,
@@ -77,6 +78,12 @@ export async function POST(request: NextRequest) {
   if (!name || !phone) {
     return NextResponse.json(
       { error: { code: "VALIDATION_ERROR", message: "이름과 연락처를 입력해주세요." } },
+      { status: 422 }
+    );
+  }
+  if (!isValidMemberPhone(phone)) {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: PHONE_FORMAT_MESSAGE } },
       { status: 422 }
     );
   }

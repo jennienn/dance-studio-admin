@@ -63,7 +63,7 @@ test("로그인, 회원 목록, 개인레슨 등록, 첫 수업, 잔여 회차, 
   await expect(page.getByRole("heading", { name: "회원" })).toBeVisible();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   await page.getByPlaceholder("홍길동").fill(memberName);
-  await page.getByPlaceholder("010-1234-5678").fill("000-E2E-001");
+  await page.getByPlaceholder("010-0000-0000").fill("01090000001");
   await page.getByRole("button", { name: "4회권" }).click();
   await page.getByPlaceholder("금액을 입력하세요").fill("200000");
   const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
@@ -91,7 +91,7 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
   await modal.getByPlaceholder("홍길동").fill(groupMemberName);
-  await modal.getByPlaceholder("010-1234-5678").fill("000-E2E-002");
+  await modal.getByPlaceholder("010-0000-0000").fill("01090000002");
   await modal.getByRole("button", { name: "단체레슨" }).click();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
@@ -123,7 +123,7 @@ test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", as
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
   await modal.getByPlaceholder("홍길동").fill(packageMemberName);
-  await modal.getByPlaceholder("010-1234-5678").fill("000-E2E-PACKAGE");
+  await modal.getByPlaceholder("010-0000-0000").fill("01090000003");
   await modal.getByRole("button", { name: "스타터 패키지", exact: true }).click();
   await expect(modal.getByText(/개인레슨 2회와.*단체레슨 4회/)).toBeVisible();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
@@ -148,7 +148,7 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
     const response = await page.request.post("/api/members", {
       data: {
         name: `테스트회원_E2E_CAPACITY_${suffix}_${index + 1}`,
-        phone: `000-E2E-C${index + 1}`,
+        phone: `010-9001-${String(index + 1).padStart(4, "0")}`,
         enrollment: {
           kind: "group",
           className,
@@ -165,7 +165,7 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
   await modal.getByPlaceholder("홍길동").fill(`테스트회원_E2E_CAPACITY_BLOCKED_${suffix}`);
-  await modal.getByPlaceholder("010-1234-5678").fill("000-E2E-BLOCK");
+  await modal.getByPlaceholder("010-0000-0000").fill("01090019999");
   await modal.getByRole("button", { name: "단체레슨" }).click();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();

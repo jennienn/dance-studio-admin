@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import { apiFetch } from "@/lib/api-client";
 import { notificationsEnabled } from "@/lib/notification-config";
+import { formatPhoneInput, isValidMemberPhone, PHONE_FORMAT_MESSAGE } from "@/lib/phone";
 
 const SOLO_PLANS = [4, 8, 12] as const;
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -77,8 +78,8 @@ export function NewMemberModal({
       setError("이름을 입력해주세요.");
       return;
     }
-    if (!phone.trim()) {
-      setError("연락처를 입력해주세요.");
+    if (!isValidMemberPhone(phone)) {
+      setError(PHONE_FORMAT_MESSAGE);
       return;
     }
     if (kind === "solo" && !plan) {
@@ -138,7 +139,16 @@ export function NewMemberModal({
       <label style={labelStyle}>
         연락처 <span style={requiredStyle}>*</span>
       </label>
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="010-1234-5678" style={inputStyle} />
+      <input
+        type="tel"
+        inputMode="numeric"
+        autoComplete="tel"
+        maxLength={13}
+        value={phone}
+        onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+        placeholder="010-0000-0000"
+        style={inputStyle}
+      />
 
       <label style={labelStyle}>수강 종류</label>
       <div style={{ display: "flex", gap: 8 }}>

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import { apiFetch } from "@/lib/api-client";
+import { formatPhoneInput, isValidMemberPhone, PHONE_FORMAT_MESSAGE } from "@/lib/phone";
 
 export function EditMemberModal({
   open,
@@ -26,8 +27,12 @@ export function EditMemberModal({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!name.trim() || !phone.trim()) {
-      setError("이름과 연락처를 입력해주세요.");
+    if (!name.trim()) {
+      setError("이름을 입력해주세요.");
+      return;
+    }
+    if (!isValidMemberPhone(phone)) {
+      setError(PHONE_FORMAT_MESSAGE);
       return;
     }
     setSubmitting(true);
@@ -52,7 +57,16 @@ export function EditMemberModal({
       <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
 
       <label style={labelStyle}>연락처</label>
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+      <input
+        type="tel"
+        inputMode="numeric"
+        autoComplete="tel"
+        maxLength={13}
+        value={phone}
+        onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
+        placeholder="010-0000-0000"
+        style={inputStyle}
+      />
 
       {error && <p style={{ color: "var(--danger)", fontSize: 12, marginTop: 10 }}>{error}</p>}
 

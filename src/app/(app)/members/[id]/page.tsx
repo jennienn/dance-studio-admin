@@ -387,6 +387,7 @@ export default function MemberDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [editMemberOpen, setEditMemberOpen] = useState(false);
+  const [deletingMember, setDeletingMember] = useState(false);
   const [addEnrollmentOpen, setAddEnrollmentOpen] = useState(false);
   const [addSessionCycleId, setAddSessionCycleId] = useState<string | null>(null);
   const [editScheduleTarget, setEditScheduleTarget] = useState<{ enrollment: Enrollment; cycle: Cycle } | null>(null);
@@ -420,6 +421,23 @@ export default function MemberDetailPage() {
   if (loading) return <p className="state-message">불러오는 중...</p>;
   if (error || !member) return <p className="state-message error">{error ?? "회원을 찾을 수 없습니다."}</p>;
 
+  async function handleDeleteMember() {
+    const confirmed = confirm(
+      `${member!.name} 회원을 삭제할까요?\n\n수강권, 결제, 수업, 출석, 알림 이력이 모두 삭제되며 복구할 수 없습니다.`
+    );
+    if (!confirmed) return;
+
+    setDeletingMember(true);
+    try {
+      await apiFetch(`/api/members/${member!.id}`, { method: "DELETE" });
+      router.replace("/members");
+      router.refresh();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "회원 삭제에 실패했습니다.");
+      setDeletingMember(false);
+    }
+  }
+
   return (
     <div>
       <button
@@ -437,9 +455,24 @@ export default function MemberDetailPage() {
           </h1>
           <p style={{ margin: 0, color: "var(--text-sub)", fontSize: 13 }}>{member.phone}</p>
         </div>
-        <button className="secondary" style={{ width: "auto", padding: "8px 14px" }} onClick={() => setEditMemberOpen(true)}>
-          회원정보 수정
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="secondary"
+            style={{ width: "auto", padding: "8px 14px" }}
+            onClick={() => setEditMemberOpen(true)}
+            disabled={deletingMember}
+          >
+            회원정보 수정
+          </button>
+          <button
+            className="secondary"
+            style={{ width: "auto", padding: "8px 14px", color: "var(--danger)" }}
+            onClick={handleDeleteMember}
+            disabled={deletingMember}
+          >
+            {deletingMember ? "삭제 중..." : "회원 삭제"}
+          </button>
+        </div>
       </div>
 
       {member.enrollments.length === 0 ? (

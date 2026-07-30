@@ -78,3 +78,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const memberId = Number(id);
+
+  if (!Number.isSafeInteger(memberId) || memberId <= 0) {
+    return NextResponse.json(
+      { error: { code: "VALIDATION_ERROR", message: "올바른 회원 ID가 아닙니다." } },
+      { status: 422 }
+    );
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("members").delete().eq("id", memberId).select("id").maybeSingle();
+
+  if (error) {
+    return NextResponse.json(
+      { error: { code: "DB_ERROR", message: "회원 삭제에 실패했습니다." } },
+      { status: 500 }
+    );
+  }
+  if (!data) {
+    return NextResponse.json(
+      { error: { code: "NOT_FOUND", message: "회원을 찾을 수 없습니다." } },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}

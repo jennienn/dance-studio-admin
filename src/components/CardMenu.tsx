@@ -20,6 +20,9 @@ export function CardMenu({ items }: { items: { label: string; danger?: boolean; 
     <div ref={ref} style={{ position: "relative" }}>
       <button
         type="button"
+        aria-label="수강 관리 메뉴"
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="secondary"
         style={{ width: "auto", padding: "2px 8px", fontSize: 16, lineHeight: 1 }}
         onClick={() => setOpen((o) => !o)}
@@ -28,6 +31,7 @@ export function CardMenu({ items }: { items: { label: string; danger?: boolean; 
       </button>
       {open && (
         <div
+          role="menu"
           style={{
             position: "absolute",
             right: 0,
@@ -45,6 +49,7 @@ export function CardMenu({ items }: { items: { label: string; danger?: boolean; 
             <button
               key={item.label}
               type="button"
+              role="menuitem"
               onClick={() => {
                 setOpen(false);
                 item.onClick();

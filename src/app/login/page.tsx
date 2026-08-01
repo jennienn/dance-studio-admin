@@ -47,7 +47,7 @@ export default function LoginPage() {
           required
           style={{ width: "100%", padding: 8, marginBottom: 8 }}
         />
-        {error && <p style={{ color: "red", fontSize: 13 }}>{error}</p>}
+        {error && <p role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>{error}</p>}
         <button type="submit" disabled={loading} style={{ width: "100%", padding: 10 }}>
           {loading ? "로그인 중..." : "로그인"}
         </button>

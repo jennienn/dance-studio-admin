@@ -228,7 +228,19 @@ export function MembersListView({ title, statusFilter, showAddButton = false, em
             </thead>
             <tbody>
               {items.map((member) => (
-                <tr key={member.id} data-clickable="true" onClick={() => router.push(`/members/${member.id}`)}>
+                <tr
+                  key={member.id}
+                  data-clickable="true"
+                  tabIndex={0}
+                  aria-label={`${member.name} 회원 상세 보기`}
+                  onClick={() => router.push(`/members/${member.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      router.push(`/members/${member.id}`);
+                    }
+                  }}
+                >
                   <td>{member.name}</td>
                   <td>
                     <CurrentEnrollmentCell member={member} />

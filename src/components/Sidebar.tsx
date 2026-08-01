@@ -98,7 +98,12 @@ export function Sidebar() {
           );
         }
         return (
-          <Link key={item.href} href={item.href} className={`nav-item${active ? " active" : ""}`}>
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-label={item.label}
+            className={`nav-item${active ? " active" : ""}`}
+          >
             {item.icon}
             <span>{item.label}</span>
           </Link>

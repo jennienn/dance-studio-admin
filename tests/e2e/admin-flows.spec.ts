@@ -89,7 +89,7 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await login(page);
   await page.getByRole("link", { name: "회원", exact: true }).click();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
-  const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
+  const modal = page.getByRole("dialog", { name: "회원 등록" });
   await modal.getByPlaceholder("홍길동").fill(groupMemberName);
   await modal.getByPlaceholder("010-0000-0000").fill("01090000002");
   await modal.getByRole("button", { name: "단체레슨" }).click();
@@ -121,7 +121,7 @@ test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", as
   await login(page);
   await page.getByRole("link", { name: "회원", exact: true }).click();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
-  const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
+  const modal = page.getByRole("dialog", { name: "회원 등록" });
   await modal.getByPlaceholder("홍길동").fill(packageMemberName);
   await modal.getByPlaceholder("010-0000-0000").fill("01090000003");
   await modal.getByRole("button", { name: "스타터 패키지", exact: true }).click();
@@ -163,7 +163,7 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
 
   await page.getByRole("link", { name: "회원", exact: true }).click();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
-  const modal = page.getByRole("heading", { name: "회원 등록" }).locator("..");
+  const modal = page.getByRole("dialog", { name: "회원 등록" });
   await modal.getByPlaceholder("홍길동").fill(`테스트회원_E2E_CAPACITY_BLOCKED_${suffix}`);
   await modal.getByPlaceholder("010-0000-0000").fill("01090019999");
   await modal.getByRole("button", { name: "단체레슨" }).click();
@@ -186,4 +186,39 @@ test("로그아웃 후 보호 페이지와 API 접근이 차단된다", async ({
   await expect(page).toHaveURL(/\/login$/);
   const response = await page.request.get("/api/members", { maxRedirects: 0 });
   expect(response.status()).toBe(401);
+});
+
+test("모바일·태블릿 반응형, 모달 키보드, API 실패와 404 상태", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.getByRole("link", { name: "회원", exact: true }).click();
+
+  const sidebarBox = await page.locator(".sidebar").boundingBox();
+  expect(sidebarBox?.width).toBeLessThanOrEqual(390);
+  await expect(page.getByRole("button", { name: "+ 회원 등록" })).toBeVisible();
+  await page.getByRole("button", { name: "+ 회원 등록" }).click();
+  const dialog = page.getByRole("dialog", { name: "회원 등록" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByPlaceholder("홍길동")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "+ 회원 등록" })).toBeFocused();
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "회원" })).toBeVisible();
+
+  await page.route("**/api/members**", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "UNAVAILABLE", message: "회원 목록을 불러오지 못했습니다." } })
+    })
+  );
+  await page.reload();
+  await expect(page.getByText("회원 목록을 불러오지 못했습니다.")).toBeVisible();
+  await page.unroute("**/api/members**");
+
+  await page.goto("/존재하지-않는-주소");
+  await expect(page.getByRole("heading", { name: "페이지를 찾을 수 없습니다." })).toBeVisible();
 });

@@ -109,7 +109,6 @@ export default function DailyPage() {
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>{date} 예약 명단</h2>
         {loading ? (
           <p className="state-message">예약 명단을 불러오는 중...</p>
         ) : error ? (

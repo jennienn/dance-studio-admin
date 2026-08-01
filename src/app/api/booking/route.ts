@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { readBookingToken } from "@/lib/booking-session";
+import { advanceNoticeUnavailableSlots } from "@/lib/booking-rules";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 async function getSession() {
@@ -13,6 +14,18 @@ function addDays(date: string, days: number) {
 
 function todayInKorea() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+}
+
+function koreaMinutesNow() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  return hour * 60 + minute;
 }
 
 export async function GET(request: NextRequest) {
@@ -49,6 +62,7 @@ export async function GET(request: NextRequest) {
     const day = new Date(`${date}T12:00:00+09:00`).getDay();
     if (day >= 1 && day <= 4) unavailable.push(1170, 1200, 1230);
     if (day === 2 || day === 4) unavailable.push(630, 660, 690);
+    unavailable.push(...advanceNoticeUnavailableSlots(date, todayInKorea(), koreaMinutesNow()));
   }
 
   const { data: bookings } = await db
@@ -88,8 +102,17 @@ export async function POST(request: NextRequest) {
   });
   if (error) {
     const conflict = error.message.includes("CONFLICT") || error.message.includes("OVERLAP") || error.code === "23P01";
+    const advanceNotice = error.message.includes("BOOKING_ADVANCE_NOTICE_REQUIRED");
     return NextResponse.json(
-      { error: { message: conflict ? "이미 예약된 시간이거나 단체수업과 겹칩니다." : error.message } },
+      {
+        error: {
+          message: conflict
+            ? "이미 예약된 시간이거나 단체수업과 겹칩니다."
+            : advanceNotice
+              ? "수업 시작 2시간 전까지만 예약할 수 있습니다."
+              : error.message
+        }
+      },
       { status: conflict ? 409 : 422 }
     );
   }

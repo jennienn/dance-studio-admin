@@ -141,7 +141,7 @@ export default function BookingPage() {
           await load(event.target.value);
         }}
       />
-      <p className="booking-hint">회색 시간은 다른 수업과 겹쳐 예약할 수 없습니다.</p>
+      <p className="booking-hint">회색 시간은 다른 수업과 겹치거나 예약 가능 시간이 지나 선택할 수 없습니다. 당일 예약은 수업 시작 2시간 전까지 가능합니다.</p>
       <div className="booking-times" aria-label="예약 시간">
         {times.map((slot) => (
           <button

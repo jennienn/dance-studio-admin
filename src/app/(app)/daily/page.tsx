@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
+import { koreaDateString } from "@/lib/business-rules";
 
 const PLANS = [4, 8, 12] as const;
 
@@ -41,12 +42,27 @@ interface DailyItem {
   remain: number;
 }
 
+interface ReservedLesson {
+  id: string;
+  cycleId: string;
+  startMinute: number;
+  status: "confirmed" | "completed";
+  plan: 4 | 8 | 12;
+  remain: number;
+  name: string;
+  phone: string;
+}
+
+const formatTime = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+
 export default function DailyPage() {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(koreaDateString());
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [items, setItems] = useState<DailyItem[]>([]);
+  const [reservedLessons, setReservedLessons] = useState<ReservedLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -71,7 +87,11 @@ export default function DailyPage() {
       const params = new URLSearchParams({ kind: "solo", pageSize: "500" });
       if (debouncedSearch) params.set("search", debouncedSearch);
 
-      const res = await apiFetch<{ items: MemberItem[] }>(`/api/members?${params.toString()}`);
+      const [res, reservationResult] = await Promise.all([
+        apiFetch<{ items: MemberItem[] }>(`/api/members?${params.toString()}`),
+        apiFetch<{ bookings: ReservedLesson[] }>(`/api/bookings?date=${date}`)
+      ]);
+      setReservedLessons(reservationResult.bookings);
       const candidates: DailyItem[] = [];
       for (const member of res.items) {
         const enrollment = member.enrollments.find((e) => e.kind === "solo" && e.status === "active");
@@ -157,6 +177,26 @@ export default function DailyPage() {
     }
   }
 
+  async function completeReservation(booking: ReservedLesson) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { sessions } = await apiFetch<{ sessions: SessionRow[] }>(`/api/cycles/${booking.cycleId}/sessions`);
+      const nextPending = sessions.filter((session) => session.status === "pending").sort((a, b) => a.session_index - b.session_index)[0];
+      if (!nextPending) throw new Error("남은 회차가 없습니다.");
+      await apiFetch(`/api/bookings/${booking.id}/complete`, {
+        method: "POST",
+        body: JSON.stringify({ sessionIndex: nextPending.session_index })
+      });
+      setToast(`${booking.name}님의 수업을 완료 처리했습니다.`);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "예약 처리에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const grouped = PLANS.map((plan) => ({
     plan,
     list: items.filter((i) => i.plan === plan)
@@ -176,6 +216,31 @@ export default function DailyPage() {
             style={{ flex: "1 1 220px", minWidth: 180 }}
           />
         </div>
+      </div>
+
+      <div className="panel">
+        <h2 style={{ marginTop: 0 }}>수강생 예약</h2>
+        {reservedLessons.length === 0 ? (
+          <p className="state-message">선택한 날짜의 예약이 없습니다.</p>
+        ) : (
+          <ul className="daily-list">
+            {reservedLessons.map((booking) => (
+              <li key={booking.id} className="daily-row booking-admin-row">
+                <div>
+                  <strong>{formatTime(booking.startMinute)} · {booking.name}</strong>
+                  <div style={{ color: "var(--text-sub)", marginTop: 4 }}>
+                    {booking.phone} · {booking.plan}회권 · 잔여 {booking.remain}회 · {booking.status === "completed" ? "수업 완료" : "예약 완료"}
+                  </div>
+                </div>
+                {booking.status === "confirmed" && (
+                  <button type="button" style={{ width: "auto" }} disabled={submitting} onClick={() => completeReservation(booking)}>
+                    수업 완료
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {loading ? (

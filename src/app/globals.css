@@ -154,6 +154,72 @@ textarea {
   width: 100%;
   padding: 40px 48px 56px;
 }
+.booking-shell {
+  max-width: 720px;
+  margin: 40px auto;
+  padding: 24px;
+}
+.booking-shell form {
+  display: grid;
+  gap: 14px;
+}
+.booking-shell label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+.booking-shell > input {
+  width: 100%;
+  margin: 6px 0;
+}
+.booking-intro,
+.booking-hint {
+  color: var(--text-sub);
+}
+.booking-times {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 18px 0;
+}
+.booking-times button {
+  padding: 10px 8px;
+}
+.booking-times button:disabled {
+  color: #737373;
+  background: #e5e7eb;
+  opacity: 1;
+}
+.booking-list {
+  padding: 0;
+  list-style: none;
+}
+.booking-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.booking-list button,
+.booking-admin-row button {
+  width: auto;
+}
+@media (max-width: 600px) {
+  .booking-shell {
+    margin: 0 auto;
+    padding: 20px 16px;
+  }
+  .booking-times {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .booking-list li,
+  .booking-admin-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
 
 .page-title {
   color: var(--text);

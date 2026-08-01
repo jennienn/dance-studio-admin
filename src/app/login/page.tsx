@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +27,25 @@ export default function LoginPage() {
     }
     router.push("/");
     router.refresh();
+  }
+
+  async function handleResetPassword() {
+    if (!email.trim()) {
+      setError("비밀번호를 재설정할 이메일을 입력해주세요.");
+      return;
+    }
+    setResetting(true);
+    setError(null);
+    setNotice(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+    setResetting(false);
+    if (error) {
+      setError("재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    setNotice("계정이 존재하면 비밀번호 재설정 메일이 발송됩니다.");
   }
 
   return (
@@ -48,8 +69,12 @@ export default function LoginPage() {
           style={{ width: "100%", padding: 8, marginBottom: 8 }}
         />
         {error && <p role="alert" style={{ color: "var(--danger)", fontSize: 13 }}>{error}</p>}
+        {notice && <p role="status" style={{ color: "var(--success)", fontSize: 13 }}>{notice}</p>}
         <button type="submit" disabled={loading} style={{ width: "100%", padding: 10 }}>
           {loading ? "로그인 중..." : "로그인"}
+        </button>
+        <button type="button" className="secondary" disabled={loading || resetting} onClick={handleResetPassword} style={{ width: "100%", padding: 10, marginTop: 8 }}>
+          {resetting ? "메일 발송 중..." : "비밀번호 재설정"}
         </button>
       </form>
     </main>

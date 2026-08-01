@@ -10,6 +10,13 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/internal")) {
     return response;
   }
+  if (
+    request.nextUrl.pathname === "/booking" ||
+    request.nextUrl.pathname === "/api/booking" ||
+    request.nextUrl.pathname.startsWith("/api/booking/")
+  ) {
+    return response;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,8 +41,9 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isLoginPage = request.nextUrl.pathname === "/login";
+  const isPublicAuthPage = isLoginPage || request.nextUrl.pathname === "/reset-password";
 
-  if (!user && !isLoginPage) {
+  if (!user && !isPublicAuthPage) {
     if (request.nextUrl.pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다." } },

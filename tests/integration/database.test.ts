@@ -372,7 +372,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     const created = await authenticated
       .rpc("create_member_with_starter_package_atomic", {
         p_name: memberName,
-        p_phone: "000-PACKAGE-NEW",
+        p_phone: "070-9000-1001",
         p_class_name: `${prefix}_반`,
         p_schedule_ids: [mondayId],
         p_amount: 250000,
@@ -403,7 +403,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     const failedName = `${prefix}_신규패키지실패`;
     const failed = await authenticated.rpc("create_member_with_starter_package_atomic", {
       p_name: failedName,
-      p_phone: "000-PACKAGE-FAIL",
+      p_phone: "070-9000-1002",
       p_class_name: `${prefix}_반`,
       p_schedule_ids: [999999999],
       p_amount: 250000,
@@ -615,6 +615,103 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
         error_code: null
       }
     ]);
+  });
+
+  it("개인 예약은 동시 중복, 1시간 겹침, 고정 단체수업 겹침을 DB에서 차단한다", async () => {
+    const firstMember = await createMember("예약A");
+    const secondMember = await createMember("예약B");
+    const createCycle = async (memberId: number) => {
+      const result = await authenticated
+        .rpc("create_enrollment_with_cycle_atomic", {
+          p_member_id: memberId,
+          p_kind: "solo",
+          p_plan: 4,
+          p_class_name: null,
+          p_schedule_ids: [],
+          p_amount: 200000,
+          p_method: "card",
+          p_payment_date: "2026-08-01"
+        })
+        .single();
+      expect(result.error).toBeNull();
+      return (result.data as { cycle_id: string }).cycle_id;
+    };
+    const firstCycle = await createCycle(firstMember);
+    const secondCycle = await createCycle(secondMember);
+
+    const first = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: firstCycle,
+      p_date: "2026-08-05",
+      p_start_minute: 630
+    });
+    expect(first.error).toBeNull();
+
+    const overlapBefore = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: secondCycle,
+      p_date: "2026-08-05",
+      p_start_minute: 600
+    });
+    const overlapAfter = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: secondCycle,
+      p_date: "2026-08-05",
+      p_start_minute: 660
+    });
+    const availableAfter = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: secondCycle,
+      p_date: "2026-08-05",
+      p_start_minute: 690
+    });
+    expect(overlapBefore.error?.message).toContain("BOOKING_CONFLICT");
+    expect(overlapAfter.error?.message).toContain("BOOKING_CONFLICT");
+    expect(availableAfter.error).toBeNull();
+
+    const groupOverlap = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: firstCycle,
+      p_date: "2026-08-06",
+      p_start_minute: 1170
+    });
+    const morningGroupOverlap = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: firstCycle,
+      p_date: "2026-08-06",
+      p_start_minute: 630
+    });
+    expect(groupOverlap.error?.message).toContain("GROUP_CLASS_OVERLAP");
+    expect(morningGroupOverlap.error?.message).toContain("GROUP_CLASS_OVERLAP");
+  });
+
+  it("예약 완료 처리는 예약 상태와 기존 개인레슨 회차를 함께 갱신한다", async () => {
+    const memberId = await createMember("예약완료");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: "2026-08-01"
+      })
+      .single();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+    const reserved = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: "2026-08-07",
+      p_start_minute: 600
+    });
+    expect(reserved.error).toBeNull();
+
+    const completed = await authenticated.rpc("complete_solo_booking_atomic", {
+      p_booking_id: reserved.data,
+      p_session_index: 1
+    });
+    expect(completed.error).toBeNull();
+    const [{ data: booking }, { data: session }] = await Promise.all([
+      authenticated.from("solo_bookings").select("status").eq("id", reserved.data).single(),
+      authenticated.from("sessions").select("status,date").eq("cycle_id", cycleId).eq("session_index", 1).single()
+    ]);
+    expect(booking?.status).toBe("completed");
+    expect(session).toEqual({ status: "done", date: "2026-08-07" });
   });
 
   it("비로그인 클라이언트의 DB 쓰기를 RLS가 차단한다", async () => {

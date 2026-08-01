@@ -40,7 +40,6 @@ export function AddEnrollmentModal({
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [scheduleIds, setScheduleIds] = useState<number[]>([]);
 
-  const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"card" | "transfer" | "cash">("card");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const notificationEnabled = notificationsEnabled();
@@ -84,10 +83,6 @@ export function AddEnrollmentModal({
       setError("요일을 하나 이상 선택해주세요.");
       return;
     }
-    if (!amount.trim()) {
-      setError("결제 금액을 입력해주세요.");
-      return;
-    }
     if (!paymentDate) {
       setError("결제일을 입력해주세요.");
       return;
@@ -104,7 +99,7 @@ export function AddEnrollmentModal({
             memberId,
             className,
             scheduleIds,
-            payment: { amount: Number(amount), method, paymentDate }
+            payment: { amount: 0, method, paymentDate }
           })
         });
       } else {
@@ -114,7 +109,7 @@ export function AddEnrollmentModal({
             memberId,
             kind,
             ...(kind === "solo" ? { plan } : { className, scheduleIds }),
-            payment: { amount: Number(amount), method, paymentDate },
+            payment: { amount: 0, method, paymentDate },
             sendNotification
           })
         });
@@ -227,11 +222,6 @@ export function AddEnrollmentModal({
           )}
         </>
       )}
-
-      <label style={labelStyle}>
-        결제 금액 <span style={requiredStyle}>*</span>
-      </label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="금액을 입력하세요" style={inputStyle} />
 
       <label style={labelStyle}>결제 수단</label>
       <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} style={inputStyle}>

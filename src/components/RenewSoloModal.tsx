@@ -24,7 +24,6 @@ export function RenewSoloModal({
   currentRemain: number;
 }) {
   const [plan, setPlan] = useState<(typeof PLANS)[number] | null>(null);
-  const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"card" | "transfer" | "cash">("card");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const notificationEnabled = notificationsEnabled();
@@ -35,10 +34,6 @@ export function RenewSoloModal({
   async function handleSubmit() {
     if (!plan) {
       setError("이용권을 선택해주세요.");
-      return;
-    }
-    if (!amount.trim()) {
-      setError("결제 금액을 입력해주세요.");
       return;
     }
     if (!paymentDate) {
@@ -52,7 +47,7 @@ export function RenewSoloModal({
         method: "POST",
         body: JSON.stringify({
           plan,
-          payment: { amount: Number(amount), method, paymentDate },
+          payment: { amount: 0, method, paymentDate },
           sendNotification
         })
       });
@@ -91,11 +86,6 @@ export function RenewSoloModal({
           기존 잔여 {currentRemain}회 이월 → 등록 후 잔여 <strong>{plan + currentRemain}회</strong>
         </p>
       )}
-
-      <label style={labelStyle}>
-        결제 금액 <span style={requiredStyle}>*</span>
-      </label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="금액을 입력하세요" style={inputStyle} />
 
       <label style={labelStyle}>결제 수단</label>
       <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} style={inputStyle}>

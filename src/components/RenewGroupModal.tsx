@@ -27,7 +27,6 @@ export function RenewGroupModal({
   memberName: string;
   className: string;
 }) {
-  const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"card" | "transfer" | "cash">("card");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const notificationEnabled = notificationsEnabled();
@@ -36,10 +35,6 @@ export function RenewGroupModal({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!amount.trim()) {
-      setError("결제 금액을 입력해주세요.");
-      return;
-    }
     if (!paymentDate) {
       setError("결제일을 입력해주세요.");
       return;
@@ -50,7 +45,7 @@ export function RenewGroupModal({
       await apiFetch(`/api/enrollments/${enrollmentId}/cycles`, {
         method: "POST",
         body: JSON.stringify({
-          payment: { amount: Number(amount), method, paymentDate },
+          payment: { amount: 0, method, paymentDate },
           sendNotification
         })
       });
@@ -66,11 +61,6 @@ export function RenewGroupModal({
   return (
     <Modal open={open} onClose={onClose} title={memberName}>
       <p style={{ fontSize: 13, color: "var(--text-sub)", margin: 0 }}>{className}</p>
-
-      <label style={labelStyle}>
-        결제 금액 <span style={requiredStyle}>*</span>
-      </label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="금액을 입력하세요" style={inputStyle} />
 
       <label style={labelStyle}>결제 수단</label>
       <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} style={inputStyle}>

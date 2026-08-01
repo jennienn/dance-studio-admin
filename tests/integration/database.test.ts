@@ -117,6 +117,26 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(paymentCount).toBe(1);
   });
 
+  it("결제 금액을 입력하지 않은 수강권은 0원으로 생성한다", async () => {
+    const memberId = await createMember("금액미입력");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 0,
+        p_method: "card",
+        p_payment_date: "2026-08-02"
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+    const { data: payment } = await authenticated.from("payments").select("amount").eq("cycle_id", cycleId).single();
+    expect(payment?.amount).toBe(0);
+  });
+
   it("cycle 또는 payment 단계 오류 시 enrollment를 남기지 않는다", async () => {
     const memberId = await createMember("원자실패");
     const before = await authenticated

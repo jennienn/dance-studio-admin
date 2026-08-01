@@ -65,7 +65,6 @@ test("로그인, 회원 목록, 개인레슨 등록, 첫 수업, 잔여 회차, 
   await page.getByPlaceholder("홍길동").fill(memberName);
   await page.getByPlaceholder("010-0000-0000").fill("01090000001");
   await page.getByRole("button", { name: "4회권" }).click();
-  await page.getByPlaceholder("금액을 입력하세요").fill("200000");
   const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
   await page.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
@@ -80,7 +79,6 @@ test("로그인, 회원 목록, 개인레슨 등록, 첫 수업, 잔여 회차, 
 
   await page.getByRole("button", { name: "결제 확인", exact: true }).click();
   await page.getByRole("button", { name: "4회권" }).click();
-  await page.getByPlaceholder("금액을 입력하세요").fill("200000");
   await page.getByRole("button", { name: "4회권 결제 확인 완료" }).click();
   await expect(remainingCount(page, 7)).toBeVisible();
 });
@@ -130,7 +128,6 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
   await modal.getByRole("button", { name: "수", exact: true }).click();
-  await modal.getByPlaceholder("금액을 입력하세요").fill("160000");
   const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/members") && response.request().method() === "POST");
   await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
   const response = await responsePromise;
@@ -162,7 +159,6 @@ test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", as
   await expect(modal.getByText(/개인레슨 2회와.*단체레슨 4회/)).toBeVisible();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
-  await modal.getByPlaceholder("금액을 입력하세요").fill("250000");
   const responsePromise = page.waitForResponse(
     (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
   );
@@ -203,7 +199,6 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
   await modal.getByRole("button", { name: "단체레슨" }).click();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
-  await modal.getByPlaceholder("금액을 입력하세요").fill("160000");
   const blockedResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
   );
@@ -227,7 +222,6 @@ test("회원 등록 누락·잘못된 연락처·중복 연락처를 차단한�
 
   await modal.getByPlaceholder("010-0000-0000").fill("01090000001");
   await modal.getByRole("button", { name: "4회권" }).click();
-  await modal.getByPlaceholder("금액을 입력하세요").fill("200000");
   const duplicateResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
   );

@@ -96,8 +96,11 @@ export default function BookingPage() {
   if (!info) {
     return (
       <main className="booking-shell">
-        <div className="booking-login-brand">
-          <Image src="/logo.png" alt="Élanor Dance Academy" width={220} height={220} priority />
+        <div className="booking-login-header">
+          <div className="booking-login-brand">
+            <Image src="/logo.png" alt="Élanor Dance Academy 로고" width={64} height={64} priority />
+            <span>Élanor Dance<br />Academy</span>
+          </div>
           <h1>개인레슨 예약</h1>
         </div>
         <form onSubmit={login}>

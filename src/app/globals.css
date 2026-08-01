@@ -178,18 +178,27 @@ textarea {
 }
 .booking-login-brand {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  margin-bottom: 28px;
-  text-align: center;
+  gap: 18px;
 }
 .booking-login-brand img {
-  width: 220px;
-  height: 220px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
 }
-.booking-login-brand h1 {
-  margin: 8px 0 0;
+.booking-login-brand span {
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 750;
+  line-height: 1.45;
+  letter-spacing: -0.04em;
+}
+.booking-login-header {
+  margin-bottom: 28px;
+}
+.booking-login-header h1 {
+  margin: 28px 0 0;
+  text-align: left;
 }
 .booking-heading {
   display: flex;
@@ -240,6 +249,16 @@ textarea {
   }
   .booking-times {
     grid-template-columns: repeat(3, 1fr);
+  }
+  .booking-login-brand {
+    gap: 14px;
+  }
+  .booking-login-brand img {
+    width: 56px;
+    height: 56px;
+  }
+  .booking-login-brand span {
+    font-size: 25px;
   }
   .booking-list li,
   .booking-admin-row {

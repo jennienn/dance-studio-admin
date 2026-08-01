@@ -176,6 +176,21 @@ textarea {
 .booking-hint {
   color: var(--text-sub);
 }
+.booking-login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+  text-align: center;
+}
+.booking-login-brand img {
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
+}
+.booking-login-brand h1 {
+  margin: 8px 0 0;
+}
 .booking-heading {
   display: flex;
   align-items: center;

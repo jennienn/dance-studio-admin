@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { apiFetch } from "@/lib/api-client";
 import { formatPhoneInput } from "@/lib/phone";
 
@@ -95,12 +96,14 @@ export default function BookingPage() {
   if (!info) {
     return (
       <main className="booking-shell">
-        <h1>개인레슨 예약</h1>
-        <p className="booking-intro">등록된 이름과 전화번호로 예약할 수 있습니다.</p>
+        <div className="booking-login-brand">
+          <Image src="/logo.png" alt="Élanor Dance Academy" width={220} height={220} priority />
+          <h1>개인레슨 예약</h1>
+        </div>
         <form onSubmit={login}>
           <label>이름<input autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label>전화번호<input inputMode="tel" autoComplete="tel" required placeholder="010-0000-0000" value={phone} onChange={(event) => setPhone(formatPhoneInput(event.target.value))} /></label>
-          <button disabled={submitting}>{submitting ? "확인 중..." : "예약 로그인"}</button>
+          <button disabled={submitting}>{submitting ? "로그인 중..." : "로그인"}</button>
         </form>
         {error && <p className="state-message error" role="alert">{error}</p>}
       </main>

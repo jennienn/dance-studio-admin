@@ -89,7 +89,7 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await page.goto("/booking");
   await page.getByLabel("이름").fill(memberName);
   await page.getByLabel("전화번호").fill("010-9000-0001");
-  await page.getByRole("button", { name: "예약 로그인" }).click();
+  await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page.getByRole("heading", { name: `${memberName}님` })).toBeVisible();
   await expect(page.getByText(/개인레슨 4회권 이용 중/)).toBeVisible();
 
@@ -113,7 +113,7 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
 
   await page.goto("/booking");
   await page.getByRole("button", { name: "로그아웃" }).click();
-  await expect(page.getByRole("button", { name: "예약 로그인" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "로그인", exact: true })).toBeVisible();
   expect((await page.request.get("/api/booking")).status()).toBe(401);
 });
 

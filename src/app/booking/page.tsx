@@ -79,6 +79,19 @@ export default function BookingPage() {
     }
   }
 
+  async function logout() {
+    setSubmitting(true);
+    try {
+      await apiFetch("/api/booking/logout", { method: "POST" });
+    } finally {
+      setInfo(null);
+      setDate("");
+      setTime(null);
+      setError("");
+      setSubmitting(false);
+    }
+  }
+
   if (!info) {
     return (
       <main className="booking-shell">
@@ -98,7 +111,10 @@ export default function BookingPage() {
   const noCapacity = confirmedCount >= info.cycle.remain;
   return (
     <main className="booking-shell">
-      <h1>{info.member.name}님</h1>
+      <div className="booking-heading">
+        <h1>{info.member.name}님</h1>
+        <button type="button" className="secondary" disabled={submitting} onClick={logout}>로그아웃</button>
+      </div>
       <p>개인레슨 {info.cycle.plan}회권 이용 중입니다.</p>
       <div className="info-grid">
         <div className="info-box">결제일<br /><strong>{info.cycle.payment_date}</strong></div>

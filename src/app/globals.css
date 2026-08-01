@@ -176,6 +176,18 @@ textarea {
 .booking-hint {
   color: var(--text-sub);
 }
+.booking-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.booking-heading h1 {
+  margin: 0;
+}
+.booking-heading button {
+  width: auto;
+}
 .booking-times {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

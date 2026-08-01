@@ -110,6 +110,11 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await reservationRow.getByRole("button", { name: "수업 완료" }).click();
   await expect(page.getByText(`${memberName}님의 수업을 완료 처리했습니다.`)).toBeVisible();
   await expect(reservationRow).toContainText("수업 완료");
+
+  await page.goto("/booking");
+  await page.getByRole("button", { name: "로그아웃" }).click();
+  await expect(page.getByRole("button", { name: "예약 로그인" })).toBeVisible();
+  expect((await page.request.get("/api/booking")).status()).toBe(401);
 });
 
 test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ page }) => {

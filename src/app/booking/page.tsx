@@ -16,7 +16,7 @@ type Info = {
 const times = Array.from({ length: 23 }, (_, index) => 600 + index * 30);
 const formatTime = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-const statusLabel = { confirmed: "예약 완료", completed: "수업 완료", cancelled: "취소" };
+const statusLabel = { confirmed: "수업 전", completed: "수업 완료", cancelled: "취소" };
 
 export default function BookingPage() {
   const [name, setName] = useState("");

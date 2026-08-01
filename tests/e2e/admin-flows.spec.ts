@@ -100,14 +100,16 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   );
   await page.getByRole("button", { name: "예약 완료", exact: true }).click();
   expect((await reserveResponse).status()).toBe(201);
-  await expect(page.getByText(/2026-08-02 10:00 · 예약 완료/)).toBeVisible();
+  await expect(page.getByText(/2026-08-02 10:00 · 수업 전/)).toBeVisible();
 
   await login(page);
   await page.getByRole("link", { name: "오늘 수업" }).click();
+  await page.locator('input[type="date"]').fill("2026-08-03");
+  await expect(page.getByText(`10:00 · ${memberName}`)).toBeHidden();
   await page.locator('input[type="date"]').fill("2026-08-02");
   const reservationRow = page.getByText(`10:00 · ${memberName}`).locator("../..");
-  await expect(reservationRow).toContainText("예약 완료");
-  await reservationRow.getByRole("button", { name: "수업 완료" }).click();
+  await expect(reservationRow).toContainText("수업 전");
+  await reservationRow.getByRole("checkbox").check();
   await expect(page.getByText(`${memberName}님의 수업을 완료 처리했습니다.`)).toBeVisible();
   await expect(reservationRow).toContainText("수업 완료");
 

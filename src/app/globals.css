@@ -281,6 +281,21 @@ textarea {
 .booking-admin-row button {
   width: auto;
 }
+.booking-complete-check {
+  cursor: pointer;
+}
+.booking-complete-check input:disabled {
+  cursor: default;
+}
+.daily-manual-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.daily-manual-group {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
 @media (max-width: 600px) {
   .booking-shell {
     margin: 0 auto;

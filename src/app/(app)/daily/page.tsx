@@ -83,6 +83,7 @@ export default function DailyPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setReservedLessons([]);
     try {
       const params = new URLSearchParams({ kind: "solo", pageSize: "500" });
       if (debouncedSearch) params.set("search", debouncedSearch);
@@ -180,6 +181,9 @@ export default function DailyPage() {
   async function completeReservation(booking: ReservedLesson) {
     setSubmitting(true);
     setError(null);
+    setReservedLessons((current) =>
+      current.map((item) => (item.id === booking.id ? { ...item, status: "completed" } : item))
+    );
     try {
       const { sessions } = await apiFetch<{ sessions: SessionRow[] }>(`/api/cycles/${booking.cycleId}/sessions`);
       const nextPending = sessions.filter((session) => session.status === "pending").sort((a, b) => a.session_index - b.session_index)[0];
@@ -192,6 +196,9 @@ export default function DailyPage() {
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "예약 처리에 실패했습니다.");
+      setReservedLessons((current) =>
+        current.map((item) => (item.id === booking.id ? { ...item, status: "confirmed" } : item))
+      );
     } finally {
       setSubmitting(false);
     }
@@ -220,40 +227,50 @@ export default function DailyPage() {
 
       <div className="panel">
         <h2 style={{ marginTop: 0 }}>수강생 예약</h2>
-        {reservedLessons.length === 0 ? (
+        {loading ? (
+          <p className="state-message">예약 명단을 불러오는 중...</p>
+        ) : error ? (
+          <p className="state-message error">{error}</p>
+        ) : reservedLessons.length === 0 ? (
           <p className="state-message">선택한 날짜의 예약이 없습니다.</p>
         ) : (
           <ul className="daily-list">
             {reservedLessons.map((booking) => (
               <li key={booking.id} className="daily-row booking-admin-row">
                 <div>
-                  <strong>{formatTime(booking.startMinute)} · {booking.name}</strong>
+                  <label className="checkbox-inline booking-complete-check">
+                    <input
+                      type="checkbox"
+                      checked={booking.status === "completed"}
+                      disabled={booking.status === "completed" || submitting}
+                      onChange={() => completeReservation(booking)}
+                    />
+                    <strong>{formatTime(booking.startMinute)} · {booking.name}</strong>
+                  </label>
                   <div style={{ color: "var(--text-sub)", marginTop: 4 }}>
-                    {booking.phone} · {booking.plan}회권 · 잔여 {booking.remain}회 · {booking.status === "completed" ? "수업 완료" : "예약 완료"}
+                    {booking.phone} · {booking.plan}회권 · 잔여 {booking.remain}회 · {booking.status === "completed" ? "수업 완료" : "수업 전"}
                   </div>
                 </div>
-                {booking.status === "confirmed" && (
-                  <button type="button" style={{ width: "auto" }} disabled={submitting} onClick={() => completeReservation(booking)}>
-                    수업 완료
-                  </button>
-                )}
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      {loading ? (
-        <p className="state-message">불러오는 중...</p>
-      ) : error ? (
-        <p className="state-message error">{error}</p>
-      ) : items.length === 0 ? (
-        <p className="state-message">잔여 회차가 있는 개인레슨 회원이 없습니다.</p>
-      ) : (
-        grouped.map(
-          ({ plan, list }) =>
-            list.length > 0 && (
-              <div className="panel" key={plan}>
+      <details className="panel daily-manual-panel">
+        <summary>예약 없이 수업 처리</summary>
+        <p className="booking-hint">전화 예약이나 현장 수업처럼 예약 페이지를 이용하지 않은 회원만 여기서 처리하세요.</p>
+        {loading ? (
+          <p className="state-message">불러오는 중...</p>
+        ) : error ? (
+          <p className="state-message error">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="state-message">잔여 회차가 있는 개인레슨 회원이 없습니다.</p>
+        ) : (
+          grouped.map(
+            ({ plan, list }) =>
+              list.length > 0 && (
+                <div className="daily-manual-group" key={plan}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span className={`badge plan-${plan}`}>{plan}회권</span>
                   <label className="checkbox-inline">
@@ -280,14 +297,15 @@ export default function DailyPage() {
                     </li>
                   ))}
                 </ul>
-              </div>
-            )
-        )
-      )}
+                </div>
+              )
+          )
+        )}
 
-      <button style={{ width: "auto", padding: "10px 18px" }} onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting}>
-        {submitting ? "처리 중..." : `선택한 ${selectedIds.size}명 수업 완료 처리`}
-      </button>
+        <button style={{ width: "auto", padding: "10px 18px" }} onClick={handleSubmit} disabled={selectedIds.size === 0 || submitting}>
+          {submitting ? "처리 중..." : `선택한 ${selectedIds.size}명 수업 완료 처리`}
+        </button>
+      </details>
 
       {toast && <div className="toast">{toast}</div>}
     </div>

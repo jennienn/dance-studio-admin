@@ -280,6 +280,7 @@ function GroupEnrollmentCard({
   onEditSchedule: () => void;
   onEnd: () => void;
 }) {
+  const [showAllAttendance, setShowAllAttendance] = useState(false);
   const isPackage = enrollment.package_id != null;
   const like = toCycleLike(enrollment, cycle);
   const status = isFixedTermCycle(like) ? soloStatusText(like) : groupStatusText(like);
@@ -288,8 +289,9 @@ function GroupEnrollmentCard({
   const attendedDates = cycle.attendance_logs
     .filter((a) => a.attended)
     .map((a) => a.date)
-    .sort();
-  const lastAttendance = attendedDates.length ? attendedDates[attendedDates.length - 1] : null;
+    .sort((a, b) => b.localeCompare(a));
+  const lastAttendance = attendedDates[0] ?? null;
+  const visibleAttendanceDates = showAllAttendance ? attendedDates : attendedDates.slice(0, 3);
   const remain = cycle.total_count - cycle.used_count;
 
   return (
@@ -363,6 +365,28 @@ function GroupEnrollmentCard({
         <span className="group-info-divider">·</span>
         알림톡 <NotiBadge status={cycle.notify_status} />
       </p>
+
+      <div style={{ marginTop: 16 }}>
+        <p style={{ fontSize: 12, color: "var(--text-sub)", margin: "0 0 6px" }}>최근 출석 기록</p>
+        {attendedDates.length === 0 ? (
+          <p style={{ fontSize: 13, color: "var(--text-mute)", margin: 0 }}>아직 기록된 출석이 없습니다.</p>
+        ) : (
+          <>
+            <ul className="record-list">
+              {visibleAttendanceDates.map((attendanceDate) => (
+                <li key={attendanceDate} className="record-row">
+                  <span>출석 · {attendanceDate}</span>
+                </li>
+              ))}
+            </ul>
+            {attendedDates.length > 3 && (
+              <button type="button" className="link-btn" onClick={() => setShowAllAttendance((current) => !current)}>
+                {showAllAttendance ? "최근 기록만 보기" : `전체 기록 보기 (${attendedDates.length}건)`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
         {isPackage ? (

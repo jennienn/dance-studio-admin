@@ -281,11 +281,11 @@ textarea {
 .booking-admin-row button {
   width: auto;
 }
-.booking-complete-check {
-  cursor: pointer;
-}
-.booking-complete-check input:disabled {
-  cursor: default;
+.booking-completed-status {
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 @media (max-width: 600px) {
   .booking-shell {

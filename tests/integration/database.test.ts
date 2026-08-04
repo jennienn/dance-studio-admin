@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomBytes } from "node:crypto";
 import { hasTestEnvironmentFile, loadAndValidateTestEnvironment, type TestEnvironment } from "../support/test-env";
+import { addCalendarDays } from "../../src/lib/business-rules";
 
 let env: TestEnvironment | null = null;
 if (hasTestEnvironmentFile()) {
@@ -480,8 +481,8 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
         .in("id", [row.solo_cycle_id, row.group_cycle_id])
         .order("id");
     expect((await readValidity()).data).toEqual([
-      expect.objectContaining({ first_class_date: "2026-07-18", valid_end_date: "2026-08-08" }),
-      expect.objectContaining({ first_class_date: "2026-07-18", valid_end_date: "2026-08-08" })
+      expect.objectContaining({ first_class_date: "2026-07-18", valid_end_date: "2026-08-07" }),
+      expect.objectContaining({ first_class_date: "2026-07-18", valid_end_date: "2026-08-07" })
     ]);
 
     expect(
@@ -493,8 +494,8 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       ).error
     ).toBeNull();
     expect((await readValidity()).data).toEqual([
-      expect.objectContaining({ first_class_date: "2026-07-20", valid_end_date: "2026-08-10" }),
-      expect.objectContaining({ first_class_date: "2026-07-20", valid_end_date: "2026-08-10" })
+      expect.objectContaining({ first_class_date: "2026-07-20", valid_end_date: "2026-08-09" }),
+      expect.objectContaining({ first_class_date: "2026-07-20", valid_end_date: "2026-08-09" })
     ]);
   });
 
@@ -732,6 +733,229 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     ]);
     expect(booking?.status).toBe("completed");
     expect(session).toEqual({ status: "done", date: "2026-08-07" });
+  });
+
+  it("취소 마감 이후 예약 취소는 가능하되 잔여 횟수를 1회 차감한다", async () => {
+    const memberId = await createMember("늦은예약취소");
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: today
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+    const { data: booking, error: bookingError } = await admin
+      .from("solo_bookings")
+      .insert({ cycle_id: cycleId, member_id: memberId, booking_date: today, start_minute: 600 })
+      .select("id")
+      .single();
+    expect(bookingError).toBeNull();
+
+    const cancelled = await admin.rpc("cancel_solo_booking_atomic", {
+      p_booking_id: booking!.id,
+      p_member_id: memberId
+    });
+    expect(cancelled.error).toBeNull();
+    expect(cancelled.data).toBe(true);
+
+    const [{ data: cancelledBooking }, { data: cycle }, { data: session }] = await Promise.all([
+      admin.from("solo_bookings").select("status,cancellation_charged").eq("id", booking!.id).single(),
+      admin.from("enrollment_cycles").select("used_count").eq("id", cycleId).single(),
+      admin.from("sessions").select("date,status,note").eq("cycle_id", cycleId).eq("session_index", 1).single()
+    ]);
+    expect(cancelledBooking).toEqual({ status: "cancelled", cancellation_charged: true });
+    expect(cycle?.used_count).toBe(1);
+    expect(session).toEqual({
+      date: today,
+      status: "done",
+      note: "예약 취소 가능 시간 이후 취소 (횟수 차감)"
+    });
+  });
+
+  it("취소 마감 전 예약 취소는 잔여 횟수를 차감하지 않는다", async () => {
+    const memberId = await createMember("정상예약취소");
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+    const bookingDate = addCalendarDays(today, 7);
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: today
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+    const { data: booking, error: bookingError } = await admin
+      .from("solo_bookings")
+      .insert({ cycle_id: cycleId, member_id: memberId, booking_date: bookingDate, start_minute: 600 })
+      .select("id")
+      .single();
+    expect(bookingError).toBeNull();
+
+    const cancelled = await admin.rpc("cancel_solo_booking_atomic", {
+      p_booking_id: booking!.id,
+      p_member_id: memberId
+    });
+    expect(cancelled.error).toBeNull();
+    expect(cancelled.data).toBe(false);
+
+    const [{ data: cancelledBooking }, { data: cycle }] = await Promise.all([
+      admin.from("solo_bookings").select("status,cancellation_charged").eq("id", booking!.id).single(),
+      admin.from("enrollment_cycles").select("used_count").eq("id", cycleId).single()
+    ]);
+    expect(cancelledBooking).toEqual({ status: "cancelled", cancellation_charged: false });
+    expect(cycle?.used_count).toBe(0);
+  });
+
+  it("운영자는 같은 날 개인레슨 수업 기록을 최대 2회까지 추가할 수 있다", async () => {
+    const memberId = await createMember("당일2회기록");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: "2026-08-01"
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+
+    const first = await authenticated.rpc("record_solo_session_atomic", {
+      p_cycle_id: cycleId,
+      p_session_index: 1,
+      p_date: "2026-08-08",
+      p_expired: false,
+      p_note: null
+    });
+    const second = await authenticated.rpc("record_solo_session_atomic", {
+      p_cycle_id: cycleId,
+      p_session_index: 2,
+      p_date: "2026-08-08",
+      p_expired: false,
+      p_note: null
+    });
+    const third = await authenticated.rpc("record_solo_session_atomic", {
+      p_cycle_id: cycleId,
+      p_session_index: 3,
+      p_date: "2026-08-08",
+      p_expired: false,
+      p_note: null
+    });
+
+    expect(first.error).toBeNull();
+    expect(second.error).toBeNull();
+    expect(third.error?.message).toContain("SAME_DAY_SESSION_LIMIT");
+  });
+
+  it("한 회원은 같은 날 개인레슨을 최대 2회까지 예약할 수 있다", async () => {
+    const memberId = await createMember("당일2회예약");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: "2026-08-01"
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+
+    const first = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: "2026-08-08",
+      p_start_minute: 600
+    });
+    const second = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: "2026-08-08",
+      p_start_minute: 660
+    });
+    const third = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: "2026-08-08",
+      p_start_minute: 720
+    });
+
+    expect(first.error).toBeNull();
+    expect(second.error).toBeNull();
+    expect(third.error?.message).toContain("SAME_DAY_BOOKING_LIMIT");
+  });
+
+  it("22:00 개인레슨 예약을 허용한다", async () => {
+    const memberId = await createMember("22시예약");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 4,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 200000,
+        p_method: "card",
+        p_payment_date: "2026-08-01"
+      })
+      .single();
+    expect(created.error).toBeNull();
+
+    const booking = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: (created.data as { cycle_id: string }).cycle_id,
+      p_date: "2026-08-08",
+      p_start_minute: 1320
+    });
+    expect(booking.error).toBeNull();
+  });
+
+  it("첫 수업 전 12회권은 결제일부터 13주째 날까지 예약할 수 있다", async () => {
+    const memberId = await createMember("12회예약유효기간");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 12,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 500000,
+        p_method: "card",
+        p_payment_date: "2026-08-01"
+      })
+      .single();
+    expect(created.error).toBeNull();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+
+    const lastValidDay = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: "2026-10-30",
+      p_start_minute: 600
+    });
+    const dayAfterExpiry = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: "2026-10-31",
+      p_start_minute: 600
+    });
+
+    expect(lastValidDay.error).toBeNull();
+    expect(dayAfterExpiry.error?.message).toContain("BOOKING_DATE_INVALID");
   });
 
   it("비로그인 클라이언트의 DB 쓰기를 RLS가 차단한다", async () => {

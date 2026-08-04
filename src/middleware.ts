@@ -4,6 +4,12 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // 요구사항명세서 4장: "인증 - 운영자 로그인 필수. 비로그인 상태에서는 어떤 데이터도 조회 불가"
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.hostname === "www.elanoracademy.com") {
+    const canonicalUrl = request.nextUrl.clone();
+    canonicalUrl.hostname = "elanoracademy.com";
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
+
   const response = NextResponse.next();
 
   // 내부 스케줄러 엔드포인트는 별도 시크릿으로 보호하므로 세션 인증에서 제외

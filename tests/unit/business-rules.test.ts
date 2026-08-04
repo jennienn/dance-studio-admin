@@ -28,9 +28,9 @@ const activeSolo = (overrides: Partial<CycleLike> = {}): CycleLike => ({
 
 describe("개인레슨 규칙", () => {
   it.each([
-    [4, "2026-08-18"],
-    [8, "2026-09-15"],
-    [12, "2026-10-13"]
+    [4, "2026-08-17"],
+    [8, "2026-09-14"],
+    [12, "2026-10-12"]
   ] as const)("%i회권의 첫 수업 기준 유효기간을 계산한다", (plan, expected) => {
     expect(calcSoloValidEnd(new Date("2026-07-14T00:00:00+09:00"), plan).toISOString().slice(0, 10)).toBe(expected);
   });

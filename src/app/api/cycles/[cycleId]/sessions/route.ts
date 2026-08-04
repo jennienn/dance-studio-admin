@@ -37,18 +37,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     p_note: note ?? null
   });
   if (sessionError) {
-    // idx_sessions_no_duplicate_date UNIQUE 위반 → 같은 날짜에 이미 다른 회차가 기록된 경우
+    const sameDayLimit = sessionError.message.includes("SAME_DAY_SESSION_LIMIT");
     const isDuplicate = sessionError.message.includes("duplicate") || sessionError.code === "23505";
     const isNotFound = sessionError.code === "P0002";
     const isValidation = sessionError.code === "22023";
     return NextResponse.json(
       {
         error: {
-          code: isDuplicate ? "DUPLICATE_RECORD" : isNotFound ? "NOT_FOUND" : isValidation ? "VALIDATION_ERROR" : "DB_ERROR",
-          message: isDuplicate ? "같은 날짜에 이미 기록된 회차가 있습니다." : sessionError.message
+          code: sameDayLimit
+            ? "SAME_DAY_SESSION_LIMIT"
+            : isDuplicate
+              ? "DUPLICATE_RECORD"
+              : isNotFound
+                ? "NOT_FOUND"
+                : isValidation
+                  ? "VALIDATION_ERROR"
+                  : "DB_ERROR",
+          message: sameDayLimit
+            ? "같은 날에는 최대 2회까지만 수업을 기록할 수 있습니다."
+            : isDuplicate
+              ? "같은 날짜에 이미 기록된 회차가 있습니다."
+              : sessionError.message
         }
       },
-      { status: isDuplicate ? 409 : isNotFound ? 404 : isValidation ? 422 : 500 }
+      { status: sameDayLimit || isDuplicate ? 409 : isNotFound ? 404 : isValidation ? 422 : 500 }
     );
   }
 

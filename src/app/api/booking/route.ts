@@ -1,15 +1,11 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { readBookingToken } from "@/lib/booking-session";
-import { advanceNoticeUnavailableSlots } from "@/lib/booking-rules";
+import { advanceNoticeUnavailableSlots, lateCancellationCharges, soloBookingValidEnd } from "@/lib/booking-rules";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 async function getSession() {
   return readBookingToken((await cookies()).get("booking_session")?.value);
-}
-
-function addDays(date: string, days: number) {
-  return new Date(new Date(`${date}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 function todayInKorea() {
@@ -46,8 +42,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { message: "수강권 접근 권한이 없습니다." } }, { status: 403 });
   }
 
-  const duration = data.plan === 4 ? 35 : data.plan === 8 ? 63 : 84;
-  const validEndDate = data.valid_end_date ?? addDays(data.payment_date, duration);
+  const plan = data.plan as 4 | 8 | 12;
+  const validEndDate = data.valid_end_date ?? soloBookingValidEnd(data.payment_date, plan);
   const firstBookableDate = [todayInKorea(), data.payment_date].sort().at(-1)!;
   const date = request.nextUrl.searchParams.get("date");
   let unavailable: number[] = [];
@@ -67,7 +63,7 @@ export async function GET(request: NextRequest) {
 
   const { data: bookings } = await db
     .from("solo_bookings")
-    .select("id,booking_date,start_minute,status")
+    .select("id,booking_date,start_minute,status,cancellation_charged")
     .eq("cycle_id", auth.cycleId)
     .order("booking_date")
     .order("start_minute");
@@ -82,7 +78,12 @@ export async function GET(request: NextRequest) {
       remain: data.total_count - data.used_count
     },
     unavailable: [...new Set(unavailable)],
-    bookings: bookings ?? []
+    bookings: (bookings ?? []).map((booking) => ({
+      ...booking,
+      late_cancellation: booking.status === "confirmed"
+        ? lateCancellationCharges(booking.booking_date, todayInKorea(), koreaMinutesNow())
+        : false
+    }))
   });
 }
 
@@ -102,11 +103,17 @@ export async function POST(request: NextRequest) {
   });
   if (error) {
     const conflict = error.message.includes("CONFLICT") || error.message.includes("OVERLAP") || error.code === "23P01";
+    const sameDayLimit = error.message.includes("SAME_DAY_BOOKING_LIMIT");
     const advanceNotice = error.message.includes("BOOKING_ADVANCE_NOTICE_REQUIRED");
+    const invalidDate = error.message.includes("BOOKING_DATE_INVALID");
     return NextResponse.json(
       {
         error: {
-          message: conflict
+          message: sameDayLimit
+            ? "같은 날에는 최대 2회까지만 수강할 수 있습니다."
+            : invalidDate
+              ? "예약 가능한 기간 안의 날짜를 선택해주세요."
+            : conflict
             ? "이미 예약된 시간이거나 단체수업과 겹칩니다."
             : advanceNotice
               ? "수업 시작 2시간 전까지만 예약할 수 있습니다."

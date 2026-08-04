@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
 import { koreaDateString } from "@/lib/business-rules";
+import { Modal } from "@/components/Modal";
 
 interface SessionRow {
   session_index: number;
@@ -31,6 +32,7 @@ export default function DailyPage() {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [pendingCompletion, setPendingCompletion] = useState<ReservedLesson | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -92,6 +94,13 @@ export default function DailyPage() {
     }
   }
 
+  async function confirmCompletion() {
+    if (!pendingCompletion) return;
+    const booking = pendingCompletion;
+    setPendingCompletion(null);
+    await completeReservation(booking);
+  }
+
   return (
     <div>
       <h1 className="page-title">오늘 수업</h1>
@@ -120,24 +129,49 @@ export default function DailyPage() {
             {filteredBookings.map((booking) => (
               <li key={booking.id} className="daily-row booking-admin-row">
                 <div>
-                  <label className="checkbox-inline booking-complete-check">
-                    <input
-                      type="checkbox"
-                      checked={booking.status === "completed"}
-                      disabled={booking.status === "completed" || submittingId === booking.id}
-                      onChange={() => completeReservation(booking)}
-                    />
-                    <strong>{formatTime(booking.startMinute)} · {booking.name}</strong>
-                  </label>
+                  <strong>{formatTime(booking.startMinute)} · {booking.name}</strong>
                   <div style={{ color: "var(--text-sub)", marginTop: 4 }}>
                     {booking.phone} · {booking.plan}회권 · 잔여 {booking.remain}회 · {booking.status === "completed" ? "수업 완료" : "수업 전"}
                   </div>
                 </div>
+                {booking.status === "completed" ? (
+                  <span className="booking-completed-status">✓ 수업 완료</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={submittingId === booking.id}
+                    onClick={() => setPendingCompletion(booking)}
+                  >
+                    {submittingId === booking.id ? "처리 중..." : "수업 완료 처리"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      <Modal open={pendingCompletion !== null} onClose={() => setPendingCompletion(null)} title="수업 완료 확인">
+        {pendingCompletion && (
+          <>
+            <p style={{ margin: "4px 0 6px" }}>
+              <strong>{formatTime(pendingCompletion.startMinute)} · {pendingCompletion.name}</strong>
+            </p>
+            <p style={{ color: "var(--text-sub)", fontSize: 13, margin: "0 0 20px" }}>
+              이 예약을 수업 완료로 처리하고 1회 차감할까요?
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="secondary" style={{ flex: 1 }} onClick={() => setPendingCompletion(null)}>
+                취소
+              </button>
+              <button type="button" style={{ flex: 1 }} onClick={confirmCompletion}>
+                완료 처리
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       {toast && <div className="toast">{toast}</div>}
     </div>

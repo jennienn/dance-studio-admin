@@ -174,7 +174,7 @@ export function groupStatusText(c: CycleLike, today: Date = new Date()): StatusT
  * 등록/재등록 시점이 아니라, 실제 1회차 수업 날짜가 기록되는 순간 호출해야 한다.
  */
 export function calcSoloValidEnd(firstClassDate: Date, plan: 4 | 8 | 12): Date {
-  return new Date(`${addCalendarDays(firstClassDate, WEEKS_BY_PLAN[plan] * 7)}T00:00:00.000Z`);
+  return new Date(`${addCalendarDays(firstClassDate, WEEKS_BY_PLAN[plan] * 7 - 1)}T00:00:00.000Z`);
 }
 
 /** 단체레슨 결제 시 다음 결제 예정일 계산 */

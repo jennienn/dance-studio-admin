@@ -108,7 +108,8 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   );
   await page.getByRole("button", { name: "예약 완료", exact: true }).click();
   expect((await reserveResponse).status()).toBe(201);
-  await expect(page.getByText(new RegExp(`${bookingDate} 10:00 · 수업 전`))).toBeVisible();
+  const bookedLesson = page.getByText(`${bookingDate} · 10:00`).locator("..");
+  await expect(bookedLesson).toContainText("수업 전");
 
   await login(page);
   await page.getByRole("link", { name: "오늘 수업" }).click();

@@ -25,6 +25,30 @@ const times = bookingTimeSlots();
 const formatTime = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 const statusLabel = { confirmed: "수업 전", completed: "수업 완료", cancelled: "취소" };
+const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+const pad = (value: number) => String(value).padStart(2, "0");
+
+function shiftMonth(month: string, offset: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const shifted = new Date(year, monthNumber - 1 + offset, 1);
+  return `${shifted.getFullYear()}-${pad(shifted.getMonth() + 1)}`;
+}
+
+function calendarDates(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstWeekday = new Date(year, monthNumber - 1, 1).getDay();
+  const lastDate = new Date(year, monthNumber, 0).getDate();
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = index - firstWeekday + 1;
+    return day >= 1 && day <= lastDate ? `${year}-${pad(monthNumber)}-${pad(day)}` : null;
+  });
+}
+
+function displayDate(value: string) {
+  if (!value) return "날짜를 선택하세요";
+  const [year, month, day] = value.split("-").map(Number);
+  return `${year}년 ${month}월 ${day}일 (${weekdays[new Date(year, month - 1, day).getDay()]})`;
+}
 
 export default function BookingPage() {
   const [name, setName] = useState("");
@@ -35,11 +59,13 @@ export default function BookingPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState("");
 
   async function load(selectedDate = "") {
     try {
       const result = await apiFetch<Info>(`/api/booking${selectedDate ? `?date=${selectedDate}` : ""}`);
       setInfo(result);
+      setCalendarMonth((current) => current || result.cycle.first_bookable_date.slice(0, 7));
       setError("");
     } catch {
       setInfo(null);
@@ -143,76 +169,33 @@ export default function BookingPage() {
     (booking) => booking.booking_date === date && booking.status !== "cancelled"
   ).length;
   const sameDayLimitReached = sameDayBookingCount >= 2;
-  const selectedTimeLabel = time === null ? "시간을 선택해주세요" : formatTime(time);
-  return (
-    <main className="booking-shell">
-      <header className="booking-profile">
-        <div className="booking-heading">
-          <div>
-            <h1>{info.member.name}님</h1>
-            <p>개인레슨 예약</p>
-          </div>
-          <button type="button" className="secondary" disabled={submitting} onClick={logout}>로그아웃</button>
-        </div>
-        <div className="booking-pass-summary">
-          <div>
-            <span>개인레슨 {info.cycle.plan}회권 이용 중</span>
-            <strong>남은 횟수 {info.cycle.remain}회</strong>
-          </div>
-          <dl>
-            <div><dt>결제일</dt><dd>{info.cycle.payment_date}</dd></div>
-            <div><dt>만료일</dt><dd>{info.cycle.valid_end_date}</dd></div>
-          </dl>
-        </div>
-      </header>
+  const month = calendarMonth || info.cycle.first_bookable_date.slice(0, 7);
+  const firstMonth = info.cycle.first_bookable_date.slice(0, 7);
+  const lastMonth = info.cycle.valid_end_date.slice(0, 7);
+  const upcomingBookings = info.bookings.filter((booking) => booking.status === "confirmed");
+  const pastBookings = info.bookings.filter((booking) => booking.status !== "confirmed").slice().reverse();
+  const morningTimes = times.filter((slot) => slot < 720);
+  const afternoonTimes = times.filter((slot) => slot >= 720);
 
-      <section className="booking-section">
-        <div className="booking-section-heading">
-          <span>1</span>
-          <div><h2 id="booking-date-title">예약 날짜</h2><p>수업을 원하는 날짜를 선택하세요.</p></div>
-        </div>
-        <input
-          aria-label="예약 날짜"
-          type="date"
-          min={info.cycle.first_bookable_date}
-          max={info.cycle.valid_end_date}
-          value={date}
-          onChange={async (event) => {
-            const selectedDate = event.target.value;
-            setTime(null);
-            if (!selectedDate) {
-              setDate("");
-              return;
-            }
-            if (!isBookingDateWithinRange(
-              selectedDate,
-              info.cycle.first_bookable_date,
-              info.cycle.valid_end_date
-            )) {
-              setDate("");
-              setError(`예약 가능한 날짜는 ${info.cycle.first_bookable_date}부터 ${info.cycle.valid_end_date}까지입니다.`);
-              return;
-            }
-            setDate(selectedDate);
-            setError("");
-            await load(selectedDate);
-          }}
-        />
-        <p className="booking-range">선택 가능 기간 <strong>{info.cycle.first_bookable_date} ~ {info.cycle.valid_end_date}</strong></p>
-      </section>
+  async function selectDate(selectedDate: string) {
+    if (!isBookingDateWithinRange(selectedDate, info!.cycle.first_bookable_date, info!.cycle.valid_end_date)) return;
+    setDate(selectedDate);
+    setTime(null);
+    setError("");
+    await load(selectedDate);
+  }
 
-      <section className="booking-section">
-        <div className="booking-section-heading">
-          <span>2</span>
-          <div><h2 id="booking-time-title">예약 시간</h2><p>{date ? `${date}의 가능한 시간입니다.` : "날짜를 먼저 선택해주세요."}</p></div>
-        </div>
-        <div className="booking-times" aria-label="예약 시간">
-          {times.map((slot) => (
+  function renderTimeGroup(label: string, slots: number[]) {
+    return (
+      <div className="reservation-time-group">
+        <p>{label}</p>
+        <div className="reservation-times">
+          {slots.map((slot) => (
             <button
               key={slot}
               type="button"
-              className={time === slot ? "selected" : "secondary"}
-              disabled={!date || noCapacity || sameDayLimitReached || info.unavailable.includes(slot)}
+              className={time === slot ? "selected" : ""}
+              disabled={!date || noCapacity || sameDayLimitReached || info!.unavailable.includes(slot)}
               aria-pressed={time === slot}
               onClick={() => setTime(slot)}
             >
@@ -220,46 +203,89 @@ export default function BookingPage() {
             </button>
           ))}
         </div>
-        <div className="booking-time-legend" aria-hidden="true">
-          <span><i className="available" />예약 가능</span>
-          <span><i className="selected" />선택</span>
-          <span><i className="unavailable" />예약 불가</span>
-        </div>
-        <p className="booking-hint">당일 예약은 수업 시작 2시간 전까지 가능합니다.</p>
+      </div>
+    );
+  }
+
+  function renderBookingList(bookings: Booking[], emptyMessage: string) {
+    if (bookings.length === 0) return <p className="reservation-empty">{emptyMessage}</p>;
+    return (
+      <ul className="reservation-list">
+        {bookings.map((booking) => (
+          <li key={booking.id}>
+            <div>
+              <strong>{displayDate(booking.booking_date)}</strong>
+              <span>{formatTime(booking.start_minute)} · {statusLabel[booking.status]}{booking.cancellation_charged ? " · 횟수 차감" : ""}</span>
+            </div>
+            {booking.status === "confirmed" && (
+              <button type="button" onClick={() => cancel(booking)}>취소</button>
+            )}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <main className="reservation-page">
+      <header className="reservation-header">
+        <div className="reservation-brand"><Image src="/logo.png" alt="Élanor Dance Academy 로고" width={38} height={38} /><span>Élanor Dance Academy</span></div>
+        <button type="button" disabled={submitting} onClick={logout}>로그아웃</button>
+      </header>
+
+      <section className="reservation-member">
+        <div><h1>{info.member.name}님, 안녕하세요</h1><p>개인레슨 {info.cycle.plan}회권 이용 중</p></div>
+        <div className="reservation-balance"><span>남은 횟수</span><strong>{info.cycle.remain}회</strong></div>
+        <dl><div><dt>결제일</dt><dd>{info.cycle.payment_date}</dd></div><div><dt>이용기간</dt><dd>~ {info.cycle.valid_end_date}</dd></div></dl>
       </section>
 
-      <section className="booking-confirmation" aria-label="선택한 예약">
-        <div>
-          <span>선택한 수업</span>
-          <strong>{date || "날짜 미선택"} · {selectedTimeLabel}</strong>
+      <section className="reservation-booker">
+        <div className="reservation-section-title"><span>1</span><div><h2>날짜 선택</h2><p>{displayDate(date)}</p></div></div>
+        <div className="reservation-calendar">
+          <div className="reservation-calendar-nav">
+            <button type="button" aria-label="이전 달" disabled={month <= firstMonth} onClick={() => setCalendarMonth(shiftMonth(month, -1))}>‹</button>
+            <strong>{month.replace("-", "년 ")}월</strong>
+            <button type="button" aria-label="다음 달" disabled={month >= lastMonth} onClick={() => setCalendarMonth(shiftMonth(month, 1))}>›</button>
+          </div>
+          <div className="reservation-weekdays">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
+          <div className="reservation-days">
+            {calendarDates(month).map((calendarDate, index) => calendarDate ? (
+              <button
+                key={calendarDate}
+                type="button"
+                aria-label={calendarDate}
+                aria-pressed={date === calendarDate}
+                className={date === calendarDate ? "selected" : ""}
+                disabled={!isBookingDateWithinRange(calendarDate, info.cycle.first_bookable_date, info.cycle.valid_end_date)}
+                onClick={() => selectDate(calendarDate)}
+              >{Number(calendarDate.slice(-2))}</button>
+            ) : <span key={`empty-${index}`} />)}
+          </div>
         </div>
-        <button disabled={time === null || submitting || noCapacity || sameDayLimitReached} onClick={reserve}>
-          {submitting ? "예약 중..." : "예약 완료"}
-        </button>
-      </section>
-      {noCapacity && <p className="state-message">남은 횟수만큼 예약되어 추가 예약할 수 없습니다.</p>}
-      {sameDayLimitReached && <p className="state-message">같은 날에는 최대 2회까지만 수강할 수 있습니다.</p>}
-      {error && <p className="state-message error" role="alert">{error}</p>}
 
-      <section className="booking-section booking-history">
-        <div className="booking-section-heading compact">
-          <div><h2 id="my-booking-title">내 예약</h2><p>예약 내역과 진행 상태를 확인하세요.</p></div>
+        <div className="reservation-divider" />
+        <div className="reservation-section-title"><span>2</span><div><h2>시간 선택</h2><p>{date ? "가능한 시간을 선택하세요" : "날짜를 먼저 선택하세요"}</p></div></div>
+        <div className="reservation-time-area" aria-label="예약 시간">
+          {renderTimeGroup("오전", morningTimes)}
+          {renderTimeGroup("오후", afternoonTimes)}
         </div>
-        <div className="booking-policy">예약일 전날 오후 8시 전까지 취소하면 횟수가 차감되지 않습니다. 이후 취소 시 잔여 횟수 1회가 차감됩니다.</div>
+        <p className="reservation-help">회색 시간은 예약할 수 없습니다. 당일 예약은 수업 시작 2시간 전까지 가능합니다.</p>
+
+        <div className="reservation-submit">
+          <div><span>선택한 수업</span><strong>{date ? displayDate(date) : "날짜 미선택"}{time === null ? "" : ` · ${formatTime(time)}`}</strong></div>
+          <button disabled={time === null || submitting || noCapacity || sameDayLimitReached} onClick={reserve}>{submitting ? "예약 중..." : "예약 완료"}</button>
+        </div>
+        {noCapacity && <p className="state-message">남은 횟수만큼 예약되어 추가 예약할 수 없습니다.</p>}
+        {sameDayLimitReached && <p className="state-message">같은 날에는 최대 2회까지만 수강할 수 있습니다.</p>}
+        {error && <p className="state-message error" role="alert">{error}</p>}
+      </section>
+
+      <section className="reservation-bookings">
+        <h2>예약 내역</h2>
         {notice && <p className="state-message" role="status">{notice}</p>}
-        {info.bookings.length === 0 ? <p className="booking-empty">아직 예약 내역이 없습니다.</p> : (
-          <ul className="booking-list">
-            {info.bookings.map((booking) => (
-              <li key={booking.id}>
-                <div>
-                  <strong>{booking.booking_date} · {formatTime(booking.start_minute)}</strong>
-                  <span className={`booking-status ${booking.status}`}>{statusLabel[booking.status]}{booking.cancellation_charged ? " · 횟수 차감" : ""}</span>
-                </div>
-                {booking.status === "confirmed" && <button type="button" className="secondary" onClick={() => cancel(booking)}>예약 취소</button>}
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="reservation-booking-group"><h3>예정된 예약</h3>{renderBookingList(upcomingBookings, "예정된 예약이 없습니다.")}</div>
+        {pastBookings.length > 0 && <div className="reservation-booking-group past"><h3>지난 내역</h3>{renderBookingList(pastBookings, "")}</div>}
+        <p className="reservation-policy">예약일 전날 오후 8시 전까지 취소하면 횟수가 차감되지 않습니다. 이후 취소 시 잔여 횟수 1회가 차감됩니다.</p>
       </section>
     </main>
   );

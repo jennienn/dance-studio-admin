@@ -94,22 +94,17 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await expect(page.getByRole("heading", { name: `${memberName}님` })).toBeVisible();
   await expect(page.getByText(/개인레슨 4회권 이용 중/)).toBeVisible();
 
-  const bookingDateInput = page.getByLabel("예약 날짜");
-  const validEndDate = await bookingDateInput.getAttribute("max");
-  expect(validEndDate).not.toBeNull();
-  await bookingDateInput.fill(addCalendarDays(validEndDate!, 1));
-  await expect(bookingDateInput).toHaveValue("");
-  await expect(page.getByText(/^예약 가능한 날짜는/)).toBeVisible();
-
-  await bookingDateInput.fill(bookingDate);
+  const bookingDateButton = page.getByRole("button", { name: bookingDate, exact: true });
+  await expect(bookingDateButton).toBeEnabled();
+  await bookingDateButton.click();
+  await expect(bookingDateButton).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "10:00", exact: true }).click();
   const reserveResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/booking") && response.request().method() === "POST"
   );
   await page.getByRole("button", { name: "예약 완료", exact: true }).click();
   expect((await reserveResponse).status()).toBe(201);
-  const bookedLesson = page.getByText(`${bookingDate} · 10:00`).locator("..");
-  await expect(bookedLesson).toContainText("수업 전");
+  await expect(page.getByText("10:00 · 수업 전", { exact: true })).toBeVisible();
 
   await login(page);
   await page.getByRole("link", { name: "오늘 수업" }).click();

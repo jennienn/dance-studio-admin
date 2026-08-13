@@ -182,18 +182,6 @@ export function calcGroupNextDue(paymentDate: Date): Date {
   return new Date(`${addCalendarDays(paymentDate, GROUP_RENEWAL_WEEKS * 7)}T00:00:00.000Z`);
 }
 
-export function countDistinctMembers(memberIds: ReadonlyArray<string | number>): number {
-  return new Set(memberIds).size;
-}
-
-export function canAddMemberToClass(
-  existingMemberIds: ReadonlyArray<string | number>,
-  candidateMemberId: string | number,
-  capacity = 10
-): boolean {
-  return countDistinctMembers([...existingMemberIds, candidateMemberId]) <= capacity;
-}
-
 /** 알림톡 문구 템플릿 — 카카오 템플릿 심사 등록 시 이 문구를 그대로 사용할 것 */
 export function buildNotificationMessage(c: CycleLike & { className?: string | null }): string {
   if (c.kind === "solo") {

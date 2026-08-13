@@ -188,7 +188,7 @@ test("신규 회원 등록에서 스타터 패키지를 바로 등록한다", as
   await expect(page.getByText(`단체 ${className}`)).toBeVisible();
 });
 
-test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터를 남기지 않는다", async ({ page }) => {
+test("반의 capacity 값을 넘어도 회원을 등록한다", async ({ page }) => {
   await login(page);
   for (let index = 0; index < 8; index += 1) {
     const response = await page.request.post("/api/members", {
@@ -210,17 +210,20 @@ test("정원 11번째 회원 등록은 오류를 표시하고 일부 데이터�
   await page.getByRole("link", { name: "회원", exact: true }).click();
   await page.getByRole("button", { name: "+ 회원 등록" }).click();
   const modal = page.getByRole("dialog", { name: "회원 등록" });
-  await modal.getByPlaceholder("홍길동").fill(`테스트회원_E2E_CAPACITY_BLOCKED_${suffix}`);
+  const overCapacityMemberName = `테스트회원_E2E_CAPACITY_UNLIMITED_${suffix}`;
+  await modal.getByPlaceholder("홍길동").fill(overCapacityMemberName);
   await modal.getByPlaceholder("010-0000-0000").fill("01090019999");
   await modal.getByRole("button", { name: "단체레슨" }).click();
   await modal.locator("select").filter({ has: page.locator(`option[value=\"${classId}\"]`) }).selectOption(String(classId));
   await modal.getByRole("button", { name: "월", exact: true }).click();
-  const blockedResponse = page.waitForResponse(
+  const createResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/members") && response.request().method() === "POST"
   );
   await modal.getByRole("button", { name: "등록 완료", exact: true }).click();
-  expect((await blockedResponse).status()).toBe(409);
-  await expect(page.getByText(/CLASS_CAPACITY_EXCEEDED|반 정원/)).toBeVisible();
+  const response = await createResponse;
+  expect(response.status()).toBe(201);
+  createdMemberIds.push((await response.json()).memberId);
+  await expect(page.getByRole("heading", { name: overCapacityMemberName })).toBeVisible();
 });
 
 test("회원 등록 누락·잘못된 연락처·중복 연락처를 차단한다", async ({ page }) => {

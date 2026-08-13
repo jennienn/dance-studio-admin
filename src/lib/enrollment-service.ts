@@ -52,17 +52,14 @@ interface AtomicStarterPackageRow {
 }
 
 function rpcFailure(error: { message: string; code?: string }): EnrollmentCreationFailure {
-  const isCapacity = error.message.includes("CLASS_CAPACITY_EXCEEDED");
   const isDuplicatePhone =
     error.code === "23505" &&
     (error.message.includes("members_phone") || error.message.includes("members_phone_digits"));
   const isValidation = error.message.includes("VALIDATION_ERROR") || error.code === "22023";
   return {
     ok: false,
-    status: isCapacity || isDuplicatePhone ? 409 : isValidation ? 422 : 500,
-    code: isCapacity
-      ? "CLASS_CAPACITY_EXCEEDED"
-      : isDuplicatePhone
+    status: isDuplicatePhone ? 409 : isValidation ? 422 : 500,
+    code: isDuplicatePhone
         ? "DUPLICATE_PHONE"
         : isValidation
           ? "VALIDATION_ERROR"

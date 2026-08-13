@@ -209,7 +209,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(cycles?.filter((cycle) => cycle.status === "active")).toHaveLength(1);
   });
 
-  it("복수 요일은 한 회원으로 정원을 집계하고 요일 저장 실패를 전부 롤백한다", async () => {
+  it("복수 요일을 저장하고 잘못된 요일이 포함되면 전부 롤백한다", async () => {
     const memberId = await createMember("복수요일");
     const created = await authenticated.rpc("create_enrollment_with_cycle_atomic", {
       p_member_id: memberId,
@@ -241,7 +241,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(count).toBe(0);
   });
 
-  it("정원 10명은 허용하고 11번째 회원은 어떤 수강 데이터도 남기지 않는다", async () => {
+  it("반의 capacity 값을 넘어도 단체 수강 등록을 허용한다", async () => {
     const capacityName = `${prefix}_정원반`;
     const { data: capacityClass } = await authenticated
       .from("classes")
@@ -269,7 +269,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       expect(result.error).toBeNull();
     }
     const candidateId = await createMember("정원11번째");
-    const blocked = await authenticated.rpc("create_enrollment_with_cycle_atomic", {
+    const created = await authenticated.rpc("create_enrollment_with_cycle_atomic", {
       p_member_id: candidateId,
       p_kind: "group",
       p_plan: null,
@@ -279,12 +279,12 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       p_method: "card",
       p_payment_date: "2026-07-14"
     });
-    expect(blocked.error?.message).toContain("CLASS_CAPACITY_EXCEEDED");
+    expect(created.error).toBeNull();
     const { count } = await authenticated
       .from("enrollments")
       .select("*", { count: "exact", head: true })
       .eq("member_id", candidateId);
-    expect(count).toBe(0);
+    expect(count).toBe(1);
   });
 
   it("출석 등록·취소, 환불, 수강 종료를 보존형 상태 변경으로 처리한다", async () => {
@@ -499,7 +499,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     ]);
   });
 
-  it("스타터 패키지가 정원을 초과하면 패키지와 두 수강권을 모두 롤백한다", async () => {
+  it("스타터 패키지도 반의 capacity 값과 무관하게 등록한다", async () => {
     const capacityName = `${prefix}_패키지정원반`;
     const { data: capacityClass } = await authenticated
       .from("classes")
@@ -529,26 +529,26 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       ).error
     ).toBeNull();
 
-    const blockedMemberId = await createMember("패키지정원초과");
-    const blocked = await authenticated.rpc("create_starter_package_atomic", {
-      p_member_id: blockedMemberId,
+    const additionalMemberId = await createMember("패키지정원초과");
+    const created = await authenticated.rpc("create_starter_package_atomic", {
+      p_member_id: additionalMemberId,
       p_class_name: capacityName,
       p_schedule_ids: [capacitySchedule!.id],
       p_amount: 250000,
       p_method: "card",
       p_payment_date: "2026-07-14"
     });
-    expect(blocked.error?.message).toContain("CLASS_CAPACITY_EXCEEDED");
+    expect(created.error).toBeNull();
 
     const [{ count: packageCount }, { count: enrollmentCount }] = await Promise.all([
       authenticated
         .from("enrollment_packages")
         .select("*", { count: "exact", head: true })
-        .eq("member_id", blockedMemberId),
-      authenticated.from("enrollments").select("*", { count: "exact", head: true }).eq("member_id", blockedMemberId)
+        .eq("member_id", additionalMemberId),
+      authenticated.from("enrollments").select("*", { count: "exact", head: true }).eq("member_id", additionalMemberId)
     ]);
-    expect(packageCount).toBe(0);
-    expect(enrollmentCount).toBe(0);
+    expect(packageCount).toBe(1);
+    expect(enrollmentCount).toBe(2);
   });
 
   it("재등록 도중 결제 검증 실패 시 기존 active cycle을 그대로 보존한다", async () => {

@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   calcGroupNextDue,
   calcSoloValidEnd,
-  canAddMemberToClass,
-  countDistinctMembers,
   cycleStatus,
   daysUntil,
   formatDisplayDate,
@@ -84,15 +82,6 @@ describe("단체레슨 규칙", () => {
     expect(remainOf({ totalCount: 8, usedCount: 3 })).toBe(5);
   });
 
-  it("복수 요일의 같은 회원을 정원에서 한 명으로 계산한다", () => {
-    expect(countDistinctMembers([1, 1, 2, 2, 3])).toBe(3);
-  });
-
-  it("정원 10명은 허용하고 11번째 신규 회원은 차단한다", () => {
-    const ten = Array.from({ length: 10 }, (_, index) => index + 1);
-    expect(canAddMemberToClass(ten, 10)).toBe(true);
-    expect(canAddMemberToClass(ten, 11)).toBe(false);
-  });
 });
 
 describe("상태 표기 문구", () => {

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-// 기존 요일 조합을 새 조합으로 완전히 교체한다 (정원 검증은 DB 트리거가 insert 시점에 수행)
+// 기존 요일 조합을 새 조합으로 완전히 교체한다.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ cycleId: string }> }) {
   const supabase = await createSupabaseServerClient();
   const { cycleId } = await params;
@@ -14,16 +14,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     p_schedule_ids: scheduleIds
   });
   if (error) {
-    const isCapacity = error.message.includes("CLASS_CAPACITY_EXCEEDED");
     const isValidation = error.message.includes("VALIDATION_ERROR") || error.code === "22023";
     return NextResponse.json(
       {
         error: {
-          code: isCapacity ? "CLASS_CAPACITY_EXCEEDED" : isValidation ? "VALIDATION_ERROR" : "DB_ERROR",
+          code: isValidation ? "VALIDATION_ERROR" : "DB_ERROR",
           message: error.message
         }
       },
-      { status: isCapacity ? 409 : isValidation ? 422 : 500 }
+      { status: isValidation ? 422 : 500 }
     );
   }
 

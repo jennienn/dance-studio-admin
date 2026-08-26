@@ -25,6 +25,14 @@ describe("개인레슨 예약 유효기간", () => {
     expect(soloBookingValidEnd("2026-08-01", plan)).toBe(expected);
   });
 
+  it("첫 수업 전 추가 결제도 누적 유효주 수로 임시 예약 만료일을 계산한다", () => {
+    expect(soloBookingValidEnd("2026-08-01", 4, 14)).toBe("2026-11-06");
+  });
+
+  it("스타터 패키지는 plan 없이 3주 유효 기간으로 임시 예약 만료일을 계산한다", () => {
+    expect(soloBookingValidEnd("2026-08-01", null, 3)).toBe("2026-08-21");
+  });
+
   it("모바일 날짜 선택기에서도 예약 가능 기간 밖의 날짜를 거부한다", () => {
     expect(isBookingDateWithinRange("2026-08-03", "2026-08-03", "2026-09-04")).toBe(true);
     expect(isBookingDateWithinRange("2026-09-04", "2026-08-03", "2026-09-04")).toBe(true);

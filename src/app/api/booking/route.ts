@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const db = createSupabaseAdminClient();
   const { data, error } = await db
     .from("enrollment_cycles")
-    .select("id,plan,total_count,used_count,payment_date,valid_end_date,status,enrollments!inner(member_id,status,members!inner(name))")
+    .select("id,plan,total_count,used_count,payment_date,valid_end_date,valid_weeks,status,enrollments!inner(member_id,status,members!inner(name))")
     .eq("id", auth.cycleId)
     .eq("status", "active")
     .single();
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { message: "수강권 접근 권한이 없습니다." } }, { status: 403 });
   }
 
-  const plan = data.plan as 4 | 8 | 12;
-  const validEndDate = data.valid_end_date ?? soloBookingValidEnd(data.payment_date, plan);
+  const plan = data.plan as 4 | 8 | 12 | null;
+  const validEndDate = data.valid_end_date ?? soloBookingValidEnd(data.payment_date, plan, data.valid_weeks ?? undefined);
   const firstBookableDate = [todayInKorea(), data.payment_date].sort().at(-1)!;
   const date = request.nextUrl.searchParams.get("date");
   let unavailable: number[] = [];

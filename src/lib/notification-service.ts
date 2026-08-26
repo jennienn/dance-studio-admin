@@ -20,6 +20,7 @@ export interface NotificationCycleRow {
   used_count: number;
   payment_date: string;
   valid_end_date: string | null;
+  valid_weeks?: number | null;
   next_due_date: string | null;
   enrollments: {
     kind: "solo" | "group";
@@ -46,6 +47,7 @@ function dateOrPending(value: string | null): string {
 }
 
 function validWeeksFor(row: NotificationCycleRow): number {
+  if (row.valid_weeks) return row.valid_weeks;
   if (row.plan) return WEEKS_BY_PLAN[row.plan];
   return row.enrollments.enrollment_packages?.valid_weeks ?? 0;
 }
@@ -170,7 +172,7 @@ async function deliverCycleNotificationInternal(
   const { data, error } = await supabase
     .from("enrollment_cycles")
     .select(
-      "id, status, plan, base_count, total_count, used_count, payment_date, valid_end_date, next_due_date, enrollments!inner(kind, status, package_id, members(name, phone), classes(name), enrollment_packages(valid_weeks))"
+      "id, status, plan, base_count, total_count, used_count, payment_date, valid_end_date, valid_weeks, next_due_date, enrollments!inner(kind, status, package_id, members(name, phone), classes(name), enrollment_packages(valid_weeks))"
     )
     .eq("id", cycleId)
     .single();

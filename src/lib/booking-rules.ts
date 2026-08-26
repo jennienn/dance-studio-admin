@@ -10,8 +10,15 @@ export function bookingTimeSlots(): number[] {
   );
 }
 
-export function soloBookingValidEnd(paymentDate: string, plan: 4 | 8 | 12): string {
-  return addCalendarDays(paymentDate, WEEKS_BY_PLAN[plan] * 7 - 1);
+export function soloBookingValidEnd(
+  paymentDate: string,
+  plan: 4 | 8 | 12 | null,
+  validWeeks = plan === null ? undefined : WEEKS_BY_PLAN[plan]
+): string {
+  if (validWeeks === undefined) {
+    throw new Error("개인레슨 예약 유효 기간을 확인해주세요.");
+  }
+  return addCalendarDays(paymentDate, validWeeks * 7 - 1);
 }
 
 export function advanceNoticeUnavailableSlots(selectedDate: string, today: string, currentMinute: number) {

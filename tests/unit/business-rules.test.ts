@@ -50,14 +50,10 @@ describe("개인레슨 규칙", () => {
     ).toBe("danger");
   });
 
-  it("재등록 모델은 이전 completed cycle과 새 active cycle을 함께 보존할 수 있다", () => {
-    const cycles = [
-      activeSolo({ cycleStatus: "completed", totalCount: 8, usedCount: 7 }),
-      activeSolo({ cycleStatus: "active", totalCount: 5, usedCount: 0 })
-    ];
-    expect(cycles).toHaveLength(2);
-    expect(cycles.filter((cycle) => cycle.cycleStatus === "active")).toHaveLength(1);
-    expect(cycles[0].cycleStatus).toBe("completed");
+  it("추가 결제 후에도 같은 active cycle에서 사용 횟수와 누적 총 횟수를 판정한다", () => {
+    const toppedUp = activeSolo({ totalCount: 12, usedCount: 3 });
+    expect(remainOf(toppedUp)).toBe(9);
+    expect(toppedUp.cycleStatus).toBe("active");
   });
 });
 

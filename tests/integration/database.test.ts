@@ -173,7 +173,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(after.count).toBe(before.count);
   });
 
-  it("첫 회차 등록·수정·삭제와 재등록 시 이전 cycle 보존을 검증한다", async () => {
+  it("추가 결제 시 기존 수업 기록을 유지하고 횟수와 유효기간을 같은 cycle에 누적한다", async () => {
     const memberId = await createMember("회차재등록");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
@@ -189,9 +189,13 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       .single();
     const createdRow = created.data as { cycle_id: string; enrollment_id: string };
     const cycleId = createdRow.cycle_id;
-    expect((await authenticated.from("sessions").update({ date: "2026-07-15", status: "done" }).eq("cycle_id", cycleId).eq("session_index", 1)).error).toBeNull();
-    expect((await authenticated.from("sessions").update({ date: "2026-07-16" }).eq("cycle_id", cycleId).eq("session_index", 1)).error).toBeNull();
-    expect((await authenticated.from("sessions").update({ date: null, status: "pending" }).eq("cycle_id", cycleId).eq("session_index", 1)).error).toBeNull();
+    expect((await authenticated.rpc("record_solo_session_atomic", {
+      p_cycle_id: cycleId,
+      p_session_index: 1,
+      p_date: "2026-07-15",
+      p_expired: false,
+      p_note: "기존 기록 유지 검증"
+    })).error).toBeNull();
     const renewed = await authenticated.rpc("renew_enrollment_atomic", {
       p_enrollment_id: createdRow.enrollment_id,
       p_plan: 8,
@@ -203,10 +207,28 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(renewed.error).toBeNull();
     const { data: cycles } = await authenticated
       .from("enrollment_cycles")
-      .select("status")
+      .select("id, status, total_count, used_count, first_class_date, valid_end_date, valid_weeks")
       .eq("enrollment_id", createdRow.enrollment_id);
-    expect(cycles?.filter((cycle) => cycle.status === "completed")).toHaveLength(1);
+    expect(cycles).toHaveLength(1);
+    expect(cycles?.[0]).toEqual(expect.objectContaining({
+      id: cycleId,
+      status: "active",
+      total_count: 12,
+      used_count: 1,
+      first_class_date: "2026-07-15",
+      valid_end_date: "2026-10-20",
+      valid_weeks: 14
+    }));
+    expect(cycles?.filter((cycle) => cycle.status === "completed")).toHaveLength(0);
     expect(cycles?.filter((cycle) => cycle.status === "active")).toHaveLength(1);
+    const [{ count: sessionCount }, { count: paymentCount }, { data: firstSession }] = await Promise.all([
+      authenticated.from("sessions").select("*", { count: "exact", head: true }).eq("cycle_id", cycleId),
+      authenticated.from("payments").select("*", { count: "exact", head: true }).eq("cycle_id", cycleId),
+      authenticated.from("sessions").select("date, status, note").eq("cycle_id", cycleId).eq("session_index", 1).single()
+    ]);
+    expect(sessionCount).toBe(12);
+    expect(paymentCount).toBe(2);
+    expect(firstSession).toEqual({ date: "2026-07-15", status: "done", note: "기존 기록 유지 검증" });
   });
 
   it("복수 요일을 저장하고 잘못된 요일이 포함되면 전부 롤백한다", async () => {
@@ -386,6 +408,31 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       .select("*", { count: "exact", head: true })
       .in("cycle_id", [row.solo_cycle_id, row.group_cycle_id]);
     expect(paymentCount).toBe(0);
+  });
+
+  it("스타터 패키지의 개인 2회도 booking 페이지용 예약을 생성한다", async () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+    const bookingDate = addCalendarDays(today, 10);
+    const memberId = await createMember("스타터예약");
+    const created = await authenticated
+      .rpc("create_starter_package_atomic", {
+        p_member_id: memberId,
+        p_class_name: `${prefix}_반`,
+        p_schedule_ids: [mondayId],
+        p_amount: 250000,
+        p_method: "card",
+        p_payment_date: today
+      })
+      .single();
+    expect(created.error).toBeNull();
+
+    const booking = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: (created.data as { solo_cycle_id: string }).solo_cycle_id,
+      p_date: bookingDate,
+      p_start_minute: 1290
+    });
+
+    expect(booking.error).toBeNull();
   });
 
   it("신규 회원과 스타터 패키지를 한 트랜잭션으로 생성하고 실패 시 회원도 롤백한다", async () => {

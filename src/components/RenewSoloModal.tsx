@@ -65,7 +65,7 @@ export function RenewSoloModal({
       <p style={{ fontSize: 13, color: "var(--text-sub)", margin: 0 }}>현재 잔여 {currentRemain}회</p>
 
       <label style={labelStyle}>
-        새 이용권 <span style={requiredStyle}>*</span>
+        추가 이용권 <span style={requiredStyle}>*</span>
       </label>
       <div style={{ display: "flex", gap: 8 }}>
         {PLANS.map((p) => (
@@ -83,7 +83,7 @@ export function RenewSoloModal({
 
       {plan && (
         <p style={{ fontSize: 13, color: "var(--text-sub)", margin: "10px 0 0" }}>
-          기존 잔여 {currentRemain}회 이월 → 등록 후 잔여 <strong>{plan + currentRemain}회</strong>
+          기존 수업 기록 유지 · 잔여 <strong>{plan + currentRemain}회</strong> · 현재 만료일에서 유효기간 추가
         </p>
       )}
 

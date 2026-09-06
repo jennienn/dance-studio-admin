@@ -173,7 +173,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
     expect(after.count).toBe(before.count);
   });
 
-  it("추가 결제 시 기존 수업 기록을 유지하고 횟수와 유효기간을 같은 cycle에 누적한다", async () => {
+  it("개인레슨 재등록 시 이전 기록을 보존하고 새 cycle에 새 이용권과 잔여 횟수만 이월한다", async () => {
     const memberId = await createMember("회차재등록");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
@@ -209,26 +209,95 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       .from("enrollment_cycles")
       .select("id, status, total_count, used_count, first_class_date, valid_end_date, valid_weeks")
       .eq("enrollment_id", createdRow.enrollment_id);
-    expect(cycles).toHaveLength(1);
-    expect(cycles?.[0]).toEqual(expect.objectContaining({
-      id: cycleId,
-      status: "active",
-      total_count: 12,
+    expect(cycles).toHaveLength(2);
+    expect(cycles?.find((cycle) => cycle.id === cycleId)).toEqual(expect.objectContaining({
+      status: "completed",
+      total_count: 4,
       used_count: 1,
       first_class_date: "2026-07-15",
-      valid_end_date: "2026-10-20",
-      valid_weeks: 14
+      valid_end_date: "2026-08-18",
+      valid_weeks: 5
     }));
-    expect(cycles?.filter((cycle) => cycle.status === "completed")).toHaveLength(0);
+    expect(cycles?.find((cycle) => cycle.status === "active")).toEqual(expect.objectContaining({
+      total_count: 11,
+      used_count: 0,
+      first_class_date: null,
+      valid_end_date: null,
+      valid_weeks: 9
+    }));
+    expect(cycles?.filter((cycle) => cycle.status === "completed")).toHaveLength(1);
     expect(cycles?.filter((cycle) => cycle.status === "active")).toHaveLength(1);
-    const [{ count: sessionCount }, { count: paymentCount }, { data: firstSession }] = await Promise.all([
+    const activeCycleId = cycles?.find((cycle) => cycle.status === "active")?.id;
+    const [{ count: oldSessionCount }, { count: newSessionCount }, { count: oldPaymentCount }, { count: newPaymentCount }, { data: firstSession }] = await Promise.all([
       authenticated.from("sessions").select("*", { count: "exact", head: true }).eq("cycle_id", cycleId),
+      authenticated.from("sessions").select("*", { count: "exact", head: true }).eq("cycle_id", activeCycleId),
       authenticated.from("payments").select("*", { count: "exact", head: true }).eq("cycle_id", cycleId),
+      authenticated.from("payments").select("*", { count: "exact", head: true }).eq("cycle_id", activeCycleId),
       authenticated.from("sessions").select("date, status, note").eq("cycle_id", cycleId).eq("session_index", 1).single()
     ]);
-    expect(sessionCount).toBe(12);
-    expect(paymentCount).toBe(2);
+    expect(oldSessionCount).toBe(4);
+    expect(newSessionCount).toBe(11);
+    expect(oldPaymentCount).toBe(1);
+    expect(newPaymentCount).toBe(1);
     expect(firstSession).toEqual({ date: "2026-07-15", status: "done", note: "기존 기록 유지 검증" });
+  });
+
+  it("사용 완료한 8회권을 8회로 재등록하면 16회가 아닌 새 8회·9주 cycle을 만든다", async () => {
+    const memberId = await createMember("8회재등록회귀");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 8,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 400000,
+        p_method: "cash",
+        p_payment_date: "2026-07-20"
+      })
+      .single();
+    const createdRow = created.data as { cycle_id: string; enrollment_id: string };
+
+    for (let sessionIndex = 1; sessionIndex <= 8; sessionIndex += 1) {
+      const recorded = await authenticated.rpc("record_solo_session_atomic", {
+        p_cycle_id: createdRow.cycle_id,
+        p_session_index: sessionIndex,
+        p_date: `2026-07-${String(21 + sessionIndex).padStart(2, "0")}`,
+        p_expired: false,
+        p_note: null
+      });
+      expect(recorded.error).toBeNull();
+    }
+
+    const renewed = await authenticated
+      .rpc("renew_enrollment_atomic", {
+        p_enrollment_id: createdRow.enrollment_id,
+        p_plan: 8,
+        p_schedule_ids: [],
+        p_amount: 400000,
+        p_method: "transfer",
+        p_payment_date: "2026-08-31"
+      })
+      .single();
+    expect(renewed.error).toBeNull();
+    expect(renewed.data).toEqual(expect.objectContaining({ total_count: 8 }));
+
+    const { data: activeCycle } = await authenticated
+      .from("enrollment_cycles")
+      .select("plan, base_count, carry_over_count, total_count, used_count, first_class_date, valid_end_date, valid_weeks")
+      .eq("enrollment_id", createdRow.enrollment_id)
+      .eq("status", "active")
+      .single();
+    expect(activeCycle).toEqual({
+      plan: 8,
+      base_count: 8,
+      carry_over_count: 0,
+      total_count: 8,
+      used_count: 0,
+      first_class_date: null,
+      valid_end_date: null,
+      valid_weeks: 9
+    });
   });
 
   it("복수 요일을 저장하고 잘못된 요일이 포함되면 전부 롤백한다", async () => {

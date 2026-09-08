@@ -49,12 +49,16 @@ export async function GET(request: NextRequest) {
   let unavailable: number[] = [];
 
   if (date) {
-    const { data: rows } = await db
-      .from("solo_bookings")
-      .select("start_minute")
-      .eq("booking_date", date)
-      .eq("status", "confirmed");
+    const [{ data: rows }, { data: blocks }] = await Promise.all([
+      db.from("solo_bookings").select("start_minute").eq("booking_date", date).eq("status", "confirmed"),
+      db.from("solo_booking_blocks").select("start_minute,end_minute").eq("block_date", date)
+    ]);
     unavailable = (rows ?? []).flatMap((row) => [row.start_minute - 30, row.start_minute, row.start_minute + 30]);
+    for (let slot = 600; slot <= 1320; slot += 30) {
+      if ((blocks ?? []).some((block) => slot < block.end_minute && slot + 60 > block.start_minute)) {
+        unavailable.push(slot);
+      }
+    }
     const day = new Date(`${date}T12:00:00+09:00`).getDay();
     if (day >= 1 && day <= 4) unavailable.push(1170, 1200, 1230);
     if (day === 2 || day === 4) unavailable.push(630, 660, 690);
@@ -106,6 +110,7 @@ export async function POST(request: NextRequest) {
     const sameDayLimit = error.message.includes("SAME_DAY_BOOKING_LIMIT");
     const advanceNotice = error.message.includes("BOOKING_ADVANCE_NOTICE_REQUIRED");
     const invalidDate = error.message.includes("BOOKING_DATE_INVALID");
+    const blocked = error.message.includes("BOOKING_BLOCKED");
     return NextResponse.json(
       {
         error: {
@@ -113,6 +118,8 @@ export async function POST(request: NextRequest) {
             ? "같은 날에는 최대 2회까지만 수강할 수 있습니다."
             : invalidDate
               ? "예약 가능한 기간 안의 날짜를 선택해주세요."
+            : blocked
+              ? "운영자가 예약을 막아둔 시간입니다. 다른 시간을 선택해주세요."
             : conflict
             ? "이미 예약된 시간이거나 단체수업과 겹칩니다."
             : advanceNotice

@@ -3,16 +3,31 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const date = request.nextUrl.searchParams.get("date");
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const month = request.nextUrl.searchParams.get("month");
+  const validDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const validMonth = month && /^\d{4}-\d{2}$/.test(month);
+  if (!validDate && !validMonth) {
     return NextResponse.json({ error: { message: "조회 날짜를 확인해주세요." } }, { status: 422 });
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("solo_bookings")
     .select("id,booking_date,start_minute,status,cycle_id,enrollment_cycles!inner(plan,total_count,used_count,enrollments!inner(members!inner(name,phone)))")
-    .eq("booking_date", date)
-    .in("status", ["confirmed", "completed"])
+    .in("status", ["confirmed", "completed"]);
+
+  if (validDate) {
+    query = query.eq("booking_date", date);
+  } else {
+    const [year, monthNumber] = month!.split("-").map(Number);
+    const nextMonth = monthNumber === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(monthNumber + 1).padStart(2, "0")}-01`;
+    query = query.gte("booking_date", `${month}-01`).lt("booking_date", nextMonth);
+  }
+
+  const { data, error } = await query
+    .order("booking_date")
     .order("start_minute");
   if (error) return NextResponse.json({ error: { message: error.message } }, { status: 500 });
 
@@ -25,6 +40,7 @@ export async function GET(request: NextRequest) {
     };
     return {
       id: row.id,
+      bookingDate: row.booking_date,
       cycleId: row.cycle_id,
       startMinute: row.start_minute,
       status: row.status,

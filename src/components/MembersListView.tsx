@@ -89,12 +89,6 @@ function CurrentEnrollmentCell({ member }: { member: MemberItem }) {
   );
 }
 
-function toneBadgeClass(tone: "danger" | "warning" | "muted") {
-  if (tone === "danger") return "badge danger";
-  if (tone === "warning") return "badge warning";
-  return "badge success";
-}
-
 function StatusCell({ member }: { member: MemberItem }) {
   const enrollments = getActiveEnrollments(member);
   const withCycle = enrollments
@@ -109,7 +103,7 @@ function StatusCell({ member }: { member: MemberItem }) {
         const like = toCycleLike(enrollment, cycle);
         const status = isFixedTermCycle(like) ? soloStatusText(like) : groupStatusText(like);
         return (
-          <span key={enrollment.id} className={toneBadgeClass(status.tone)}>
+          <span key={enrollment.id} className="member-status-text">
             {status.text}
           </span>
         );
@@ -176,16 +170,21 @@ export function MembersListView({ title, statusFilter, showAddButton = false, em
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div>
-      <h1 className="page-title">{title}</h1>
+    <div className="app-page">
+      <header className="app-page-header">
+        <div>
+          <h1>{title}</h1>
+          <p>{statusFilter === "active" ? "수강 중인 회원을 조회하고 관리하세요." : "수강이 종료된 회원 이력을 확인하세요."}</p>
+        </div>
+      </header>
 
-      <div className="panel">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="member-directory">
+        <div className="member-list-toolbar">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="이름 또는 연락처로 검색"
-            style={{ flex: "1 1 220px", minWidth: 180 }}
+            className="member-list-search"
           />
 
           <div className="filter-tabs">
@@ -204,26 +203,26 @@ export function MembersListView({ title, statusFilter, showAddButton = false, em
           </div>
 
           {showAddButton && (
-            <button style={{ width: "auto", padding: "8px 16px", marginLeft: "auto" }} onClick={() => setShowAddModal(true)}>
+            <button className="member-add-button" onClick={() => setShowAddModal(true)}>
               + 회원 등록
             </button>
           )}
         </div>
 
-        {loading ? (
-          <p className="state-message">불러오는 중...</p>
-        ) : error ? (
-          <p className="state-message error">{error}</p>
-        ) : items.length === 0 ? (
-          <p className="state-message">{emptyMessage}</p>
-        ) : (
+        <div className="member-table-shell">
+          {loading ? (
+            <p className="state-message">불러오는 중...</p>
+          ) : error ? (
+            <p className="state-message error">{error}</p>
+          ) : items.length === 0 ? (
+            <p className="state-message">{emptyMessage}</p>
+          ) : (
           <table>
             <thead>
               <tr>
-                <th>이름</th>
+                <th>회원</th>
                 <th>현재수강</th>
                 <th>상태</th>
-                <th>연락처</th>
               </tr>
             </thead>
             <tbody>
@@ -241,19 +240,23 @@ export function MembersListView({ title, statusFilter, showAddButton = false, em
                     }
                   }}
                 >
-                  <td>{member.name}</td>
+                  <td>
+                    <div className="member-identity-cell">
+                      <span><strong>{member.name}</strong><small>{member.phone}</small></span>
+                    </div>
+                  </td>
                   <td>
                     <CurrentEnrollmentCell member={member} />
                   </td>
                   <td>
                     <StatusCell member={member} />
                   </td>
-                  <td>{member.phone}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
+          )}
+        </div>
 
         <div className="list-footer">
           <p>

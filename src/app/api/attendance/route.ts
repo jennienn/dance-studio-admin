@@ -9,17 +9,59 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const className = searchParams.get("className");
   const date = searchParams.get("date");
+  const month = searchParams.get("month");
 
-  if (!className || !date) {
+  if (!className || (!date && !month)) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "className, date는 필수입니다." } },
+      { error: { code: "VALIDATION_ERROR", message: "className과 date 또는 month는 필수입니다." } },
       { status: 422 }
     );
+  }
+  if (month && !/^\d{4}-\d{2}$/.test(month)) {
+    return NextResponse.json({ error: { code: "VALIDATION_ERROR", message: "month 형식을 확인해주세요." } }, { status: 422 });
   }
 
   const { data: cls } = await supabase.from("classes").select("id").eq("name", className).single();
   if (!cls) {
     return NextResponse.json({ error: { code: "NOT_FOUND", message: "반을 찾을 수 없습니다." } }, { status: 404 });
+  }
+
+  if (month) {
+    const [{ data: schedules, error: schedulesError }, { data: monthCycles, error: cyclesError }] = await Promise.all([
+      supabase.from("class_schedules").select("id,weekday").eq("class_id", cls.id),
+      supabase
+        .from("enrollment_cycles")
+        .select("cycle_schedules(schedule_id), enrollments!inner(status,class_id)")
+        .eq("status", "active")
+        .eq("enrollments.status", "active")
+        .eq("enrollments.class_id", cls.id)
+    ]);
+    if (schedulesError || cyclesError) {
+      return NextResponse.json(
+        { error: { code: "DB_ERROR", message: schedulesError?.message ?? cyclesError?.message } },
+        { status: 500 }
+      );
+    }
+    const scheduleIdsByWeekday = new Map<number, Set<number>>();
+    for (const schedule of schedules ?? []) {
+      const ids = scheduleIdsByWeekday.get(schedule.weekday) ?? new Set<number>();
+      ids.add(schedule.id);
+      scheduleIdsByWeekday.set(schedule.weekday, ids);
+    }
+    const cycleScheduleIds = (monthCycles ?? []).map((cycle) =>
+      new Set((cycle.cycle_schedules as { schedule_id: number }[]).map((item) => item.schedule_id))
+    );
+    const [year, monthNumber] = month.split("-").map(Number);
+    const lastDay = new Date(year, monthNumber, 0).getDate();
+    const dateCounts: Record<string, number> = {};
+    for (let day = 1; day <= lastDay; day += 1) {
+      const weekday = new Date(year, monthNumber - 1, day).getDay();
+      const scheduleIds = scheduleIdsByWeekday.get(weekday);
+      if (!scheduleIds) continue;
+      const key = `${month}-${String(day).padStart(2, "0")}`;
+      dateCounts[key] = cycleScheduleIds.filter((ids) => [...scheduleIds].some((id) => ids.has(id))).length;
+    }
+    return NextResponse.json({ dateCounts });
   }
 
   const { data: cycles, error } = await supabase

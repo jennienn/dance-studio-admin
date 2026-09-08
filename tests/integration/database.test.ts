@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomBytes } from "node:crypto";
 import { hasTestEnvironmentFile, loadAndValidateTestEnvironment, type TestEnvironment } from "../support/test-env";
-import { addCalendarDays } from "../../src/lib/business-rules";
+import { addCalendarDays, koreaDateString } from "../../src/lib/business-rules";
 
 let env: TestEnvironment | null = null;
 if (hasTestEnvironmentFile()) {
@@ -31,6 +31,15 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
   let classId: number;
   let mondayId: number;
   let wednesdayId: number;
+
+  function futureWeekday(weekday: number, minimumDays = 7) {
+    const today = koreaDateString();
+    for (let offset = minimumDays; offset < minimumDays + 7; offset += 1) {
+      const candidate = addCalendarDays(today, offset);
+      if (new Date(`${candidate}T12:00:00+09:00`).getDay() === weekday) return candidate;
+    }
+    throw new Error("테스트 날짜를 계산하지 못했습니다.");
+  }
 
   async function createMember(suffix: string) {
     const { data, error } = await authenticated
@@ -755,6 +764,9 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
   });
 
   it("개인 예약은 동시 중복, 1시간 겹침, 고정 단체수업 겹침을 DB에서 차단한다", async () => {
+    const paymentDate = koreaDateString();
+    const bookingDate = futureWeekday(3);
+    const groupClassDate = futureWeekday(4);
     const firstMember = await createMember("예약A");
     const secondMember = await createMember("예약B");
     const createCycle = async (memberId: number) => {
@@ -767,7 +779,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
           p_schedule_ids: [],
           p_amount: 200000,
           p_method: "card",
-          p_payment_date: "2026-08-01"
+          p_payment_date: paymentDate
         })
         .single();
       expect(result.error).toBeNull();
@@ -778,24 +790,24 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
 
     const first = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: firstCycle,
-      p_date: "2026-08-05",
+      p_date: bookingDate,
       p_start_minute: 630
     });
     expect(first.error).toBeNull();
 
     const overlapBefore = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: secondCycle,
-      p_date: "2026-08-05",
+      p_date: bookingDate,
       p_start_minute: 600
     });
     const overlapAfter = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: secondCycle,
-      p_date: "2026-08-05",
+      p_date: bookingDate,
       p_start_minute: 660
     });
     const availableAfter = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: secondCycle,
-      p_date: "2026-08-05",
+      p_date: bookingDate,
       p_start_minute: 690
     });
     expect(overlapBefore.error?.message).toContain("BOOKING_CONFLICT");
@@ -804,19 +816,86 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
 
     const groupOverlap = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: firstCycle,
-      p_date: "2026-08-06",
+      p_date: groupClassDate,
       p_start_minute: 1170
     });
     const morningGroupOverlap = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: firstCycle,
-      p_date: "2026-08-06",
+      p_date: groupClassDate,
       p_start_minute: 630
     });
     expect(groupOverlap.error?.message).toContain("GROUP_CLASS_OVERLAP");
     expect(morningGroupOverlap.error?.message).toContain("GROUP_CLASS_OVERLAP");
   });
 
+  it("운영자 차단 시간은 겹치는 예약을 막고 해제 후 다시 허용한다", async () => {
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+    const bookingDate = addCalendarDays(today, 10);
+    const memberId = await createMember("예약차단");
+    const created = await authenticated
+      .rpc("create_enrollment_with_cycle_atomic", {
+        p_member_id: memberId,
+        p_kind: "solo",
+        p_plan: 8,
+        p_class_name: null,
+        p_schedule_ids: [],
+        p_amount: 400000,
+        p_method: "card",
+        p_payment_date: today
+      })
+      .single();
+    const cycleId = (created.data as { cycle_id: string }).cycle_id;
+
+    const block = await authenticated.rpc("create_solo_booking_block_atomic", {
+      p_date: bookingDate,
+      p_start_minute: 840,
+      p_end_minute: 960,
+      p_reason: `${prefix}_외부일정`
+    });
+    expect(block.error).toBeNull();
+
+    const overlappingBlock = await authenticated.rpc("create_solo_booking_block_atomic", {
+      p_date: bookingDate,
+      p_start_minute: 900,
+      p_end_minute: 1020,
+      p_reason: null
+    });
+    expect(overlappingBlock.error?.message).toContain("BLOCK_OVERLAP");
+
+    const blockedBooking = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: bookingDate,
+      p_start_minute: 810
+    });
+    expect(blockedBooking.error?.message).toContain("BOOKING_BLOCKED");
+
+    const availableBooking = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: bookingDate,
+      p_start_minute: 960
+    });
+    expect(availableBooking.error).toBeNull();
+
+    const conflictsWithBooking = await authenticated.rpc("create_solo_booking_block_atomic", {
+      p_date: bookingDate,
+      p_start_minute: 930,
+      p_end_minute: 990,
+      p_reason: null
+    });
+    expect(conflictsWithBooking.error?.message).toContain("BLOCK_BOOKING_CONFLICT");
+
+    expect((await authenticated.from("solo_booking_blocks").delete().eq("id", block.data)).error).toBeNull();
+    const afterDelete = await admin.rpc("create_solo_booking_atomic", {
+      p_cycle_id: cycleId,
+      p_date: bookingDate,
+      p_start_minute: 840
+    });
+    expect(afterDelete.error).toBeNull();
+  });
+
   it("예약 완료 처리는 예약 상태와 기존 개인레슨 회차를 함께 갱신한다", async () => {
+    const paymentDate = koreaDateString();
+    const bookingDate = addCalendarDays(paymentDate, 7);
     const memberId = await createMember("예약완료");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
@@ -827,13 +906,13 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
         p_schedule_ids: [],
         p_amount: 200000,
         p_method: "card",
-        p_payment_date: "2026-08-01"
+        p_payment_date: paymentDate
       })
       .single();
     const cycleId = (created.data as { cycle_id: string }).cycle_id;
     const reserved = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: cycleId,
-      p_date: "2026-08-07",
+      p_date: bookingDate,
       p_start_minute: 600
     });
     expect(reserved.error).toBeNull();
@@ -848,7 +927,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
       authenticated.from("sessions").select("status,date").eq("cycle_id", cycleId).eq("session_index", 1).single()
     ]);
     expect(booking?.status).toBe("completed");
-    expect(session).toEqual({ status: "done", date: "2026-08-07" });
+    expect(session).toEqual({ status: "done", date: bookingDate });
   });
 
   it("취소 마감 이후 예약 취소는 가능하되 잔여 횟수를 1회 차감한다", async () => {
@@ -981,6 +1060,8 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
   });
 
   it("한 회원은 같은 날 개인레슨을 최대 2회까지 예약할 수 있다", async () => {
+    const paymentDate = koreaDateString();
+    const bookingDate = futureWeekday(6);
     const memberId = await createMember("당일2회예약");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
@@ -991,7 +1072,7 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
         p_schedule_ids: [],
         p_amount: 200000,
         p_method: "card",
-        p_payment_date: "2026-08-01"
+        p_payment_date: paymentDate
       })
       .single();
     expect(created.error).toBeNull();
@@ -999,17 +1080,17 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
 
     const first = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: cycleId,
-      p_date: "2026-08-08",
+      p_date: bookingDate,
       p_start_minute: 600
     });
     const second = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: cycleId,
-      p_date: "2026-08-08",
+      p_date: bookingDate,
       p_start_minute: 660
     });
     const third = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: cycleId,
-      p_date: "2026-08-08",
+      p_date: bookingDate,
       p_start_minute: 720
     });
 
@@ -1019,6 +1100,8 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
   });
 
   it("22:00 개인레슨 예약을 허용한다", async () => {
+    const paymentDate = koreaDateString();
+    const bookingDate = futureWeekday(6);
     const memberId = await createMember("22시예약");
     const created = await authenticated
       .rpc("create_enrollment_with_cycle_atomic", {
@@ -1029,14 +1112,14 @@ describe.runIf(env !== null)("Supabase 통합 시나리오", () => {
         p_schedule_ids: [],
         p_amount: 200000,
         p_method: "card",
-        p_payment_date: "2026-08-01"
+        p_payment_date: paymentDate
       })
       .single();
     expect(created.error).toBeNull();
 
     const booking = await admin.rpc("create_solo_booking_atomic", {
       p_cycle_id: (created.data as { cycle_id: string }).cycle_id,
-      p_date: "2026-08-08",
+      p_date: bookingDate,
       p_start_minute: 1320
     });
     expect(booking.error).toBeNull();

@@ -1,7 +1,6 @@
 // src/components/Sidebar.tsx
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -20,7 +19,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/daily",
-    label: "오늘 수업",
+    label: "수업 일정",
     ready: true,
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -82,10 +81,6 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <Image src="/logo.png" alt="Élanor Dance Academy 로고" width={33} height={30} className="brand-logo" />
-        <span className="brand-text">Élanor Dance Academy</span>
-      </div>
       {NAV_ITEMS.map((item) => {
         const active = pathname === item.href;
         if (!item.ready) {

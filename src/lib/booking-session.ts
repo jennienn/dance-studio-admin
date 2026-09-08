@@ -1,7 +1,13 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-const secret = () => process.env.BOOKING_SESSION_SECRET || "";
+const LOCAL_BOOKING_SESSION_SECRET = "dance-studio-local-booking-session-only";
+
+const secret = () => {
+  const configuredSecret = process.env.BOOKING_SESSION_SECRET?.trim();
+  if (configuredSecret) return configuredSecret;
+  return process.env.NODE_ENV === "development" ? LOCAL_BOOKING_SESSION_SECRET : "";
+};
 export function createBookingToken(memberId: number, cycleId: string) {
   if (!secret()) throw new Error("BOOKING_SESSION_SECRET 환경변수가 필요합니다.");
   const payload = Buffer.from(JSON.stringify({ memberId, cycleId, exp: Date.now() + 12 * 60 * 60 * 1000 })).toString("base64url");

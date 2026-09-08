@@ -11,7 +11,15 @@ const groupMemberName = `테스트회원_E2E_GROUP_${suffix}`;
 const packageMemberName = `테스트회원_E2E_PACKAGE_${suffix}`;
 const className = `테스트회원_E2E_CLASS_${suffix}`;
 const createdMemberIds: number[] = [];
-const bookingDate = addCalendarDays(koreaDateString(), 1);
+const bookingDate = addCalendarDays(koreaDateString(), 14);
+const attendanceDate = (() => {
+  const today = koreaDateString();
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const candidate = addCalendarDays(today, offset);
+    if (new Date(`${candidate}T12:00:00+09:00`).getDay() === 1) return candidate;
+  }
+  throw new Error("출석 테스트 날짜를 계산하지 못했습니다.");
+})();
 let classId: number | null = null;
 let mondayScheduleId: number | null = null;
 let groupMemberId: number | null = null;
@@ -98,27 +106,33 @@ test("수강생이 예약하고 운영자가 오늘 수업에서 기존 회차�
   await expect(bookingDateButton).toBeEnabled();
   await bookingDateButton.click();
   await expect(bookingDateButton).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "10:00", exact: true }).click();
+  const bookingTimeButton = page.locator(".reservation-times button:enabled").first();
+  await expect(bookingTimeButton).toBeVisible();
+  const bookingTime = (await bookingTimeButton.textContent())!.trim();
+  await bookingTimeButton.click();
   const reserveResponse = page.waitForResponse(
     (response) => response.url().endsWith("/api/booking") && response.request().method() === "POST"
   );
   await page.getByRole("button", { name: "예약 완료", exact: true }).click();
-  expect((await reserveResponse).status()).toBe(201);
-  await expect(page.getByText("10:00 · 수업 전", { exact: true })).toBeVisible();
+  const reservationResponse = await reserveResponse;
+  expect(reservationResponse.status(), await reservationResponse.text()).toBe(201);
+  await expect(page.getByText(`${bookingTime} · 수업 전`, { exact: true })).toBeVisible();
 
   await login(page);
-  await page.getByRole("link", { name: "오늘 수업" }).click();
-  await page.locator('input[type="date"]').fill(addCalendarDays(bookingDate, -1));
-  await expect(page.getByText(`10:00 · ${memberName}`)).toBeHidden();
-  await page.locator('input[type="date"]').fill(bookingDate);
-  const reservationRow = page.getByText(`10:00 · ${memberName}`).locator("../..");
-  await expect(reservationRow).toContainText("수업 전");
-  await reservationRow.getByRole("button", { name: "수업 완료 처리" }).click();
+  await page.getByRole("link", { name: "수업 일정" }).click();
+  const previousDate = addCalendarDays(bookingDate, -1);
+  await page.getByRole("button", { name: new RegExp(`^${previousDate}`) }).click();
+  await expect(page.getByText(memberName, { exact: true })).toBeHidden();
+  await page.getByRole("button", { name: new RegExp(`^${bookingDate}`) }).click();
+  const reservationRow = page.getByText(memberName, { exact: true }).locator("../..");
+  const completeButton = reservationRow.getByRole("button", { name: "수업 완료 처리" });
+  await expect(completeButton).toBeEnabled();
+  await completeButton.click();
   const completionDialog = page.getByRole("dialog", { name: "수업 완료 확인" });
-  await expect(completionDialog).toContainText(`10:00 · ${memberName}`);
+  await expect(completionDialog).toContainText(`${bookingTime} · ${memberName}`);
   await completionDialog.getByRole("button", { name: "완료 처리", exact: true }).click();
   await expect(page.getByText(`${memberName}님의 수업을 완료 처리했습니다.`)).toBeVisible();
-  await expect(reservationRow).toContainText("수업 완료");
+  await expect(reservationRow).toContainText("완료");
 
   await page.goto("/booking");
   await page.getByRole("button", { name: "로그아웃" }).click();
@@ -146,19 +160,18 @@ test("단체 회원 복수 요일 등록, 출석 등록과 취소", async ({ pag
   await expect(page.getByText(`단체 ${className}`)).toBeVisible();
 
   await page.getByRole("link", { name: "단체 출석" }).click();
-  await page.locator("select").selectOption(className);
-  const monday = new Date("2026-07-13T12:00:00+09:00");
-  await page.locator('input[type="date"]').fill(monday.toISOString().slice(0, 10));
+  await page.getByRole("button", { name: className, exact: true }).click();
+  await page.getByRole("button", { name: attendanceDate, exact: true }).click();
   const memberCheckbox = page.getByText(groupMemberName).locator("..").getByRole("checkbox");
   await memberCheckbox.check();
   await page.getByRole("button", { name: /선택한 1명 출석 처리/ }).click();
   await expect(page.getByText("1명의 출석이 저장되었습니다.")).toBeVisible();
   await page.goto(`/members/${groupMemberId}`);
   await expect(page.getByText("최근 출석 기록")).toBeVisible();
-  await expect(page.getByText(`출석 · ${monday.toISOString().slice(0, 10)}`)).toBeVisible();
+  await expect(page.getByText(`출석 · ${attendanceDate}`)).toBeVisible();
   await page.getByRole("link", { name: "단체 출석" }).click();
-  await page.locator("select").selectOption(className);
-  await page.locator('input[type="date"]').fill(monday.toISOString().slice(0, 10));
+  await page.getByRole("button", { name: className, exact: true }).click();
+  await page.getByRole("button", { name: attendanceDate, exact: true }).click();
   await page.getByText(groupMemberName).locator("..").getByRole("checkbox").uncheck();
   await page.getByRole("button", { name: /선택한 0명 출석 처리/ }).click();
   await expect(page.getByText("0명의 출석이 저장되었습니다.")).toBeVisible();

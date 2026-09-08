@@ -100,6 +100,61 @@ function NotiBadge({ status }: { status: Cycle["notify_status"] }) {
   return <span className="noti none">-</span>;
 }
 
+function MemberMemo({ memberId }: { memberId: number }) {
+  const [memo, setMemo] = useState("");
+  const [savedMemo, setSavedMemo] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    apiFetch<{ memo: string }>(`/api/members/${memberId}/memo`)
+      .then((result) => { setMemo(result.memo); setSavedMemo(result.memo); })
+      .catch(() => setMessage("메모를 불러오지 못했습니다."))
+      .finally(() => setLoading(false));
+  }, [memberId]);
+
+  async function save() {
+    setSaving(true);
+    setMessage("");
+    try {
+      const result = await apiFetch<{ memo: string }>(`/api/members/${memberId}/memo`, {
+        method: "PUT",
+        body: JSON.stringify({ memo })
+      });
+      setMemo(result.memo);
+      setSavedMemo(result.memo);
+      setMessage("저장했습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "메모 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="member-memo" aria-label="운영자 메모">
+      <div className="member-memo-heading">
+        <div><h2>운영자 메모</h2><p>회원 상담이나 수업 관련 내용을 기록하세요.</p></div>
+        <span>{memo.length}/2000</span>
+      </div>
+      <textarea
+        value={memo}
+        maxLength={2000}
+        disabled={loading || saving}
+        placeholder={loading ? "메모를 불러오는 중..." : "예: 무릎 부상으로 점프 동작 주의"}
+        onChange={(event) => { setMemo(event.target.value); setMessage(""); }}
+      />
+      <div className="member-memo-footer">
+        <span role="status">{message}</span>
+        <button type="button" disabled={loading || saving || memo === savedMemo} onClick={save}>
+          {saving ? "저장 중..." : "메모 저장"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function formatCalendarDate(value: string): string {
   return value.replaceAll("-", ".");
 }
@@ -157,8 +212,8 @@ function SoloEnrollmentCard({
   const visible = showAll ? recorded : recorded.slice(0, 3);
 
   return (
-    <div className="panel">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="panel enrollment-card">
+      <div className="enrollment-card-header">
         <div>
           <span className={cycle.plan ? `badge plan-${cycle.plan}` : "badge mute"}>
             개인 {cycle.plan ?? cycle.total_count}회권
@@ -204,16 +259,16 @@ function SoloEnrollmentCard({
         </div>
       </div>
 
-      <div className="info-grid" style={{ marginTop: 14 }}>
-        <div className="info-box">
-          <p className="info-label">첫 수업일</p>
-          <p className="info-value">{cycle.first_class_date ?? "첫 수업 전"}</p>
+      <dl className="membership-info-rows">
+        <div>
+          <dt>첫 수업일</dt>
+          <dd>{cycle.first_class_date ?? "첫 수업 전"}</dd>
         </div>
-        <div className="info-box">
-          <p className="info-label">마지막 결제일</p>
-          <p className="info-value">{cycle.payment_date}</p>
+        <div>
+          <dt>마지막 결제일</dt>
+          <dd>{cycle.payment_date}</dd>
         </div>
-      </div>
+      </dl>
 
       <div style={{ marginTop: 16 }}>
         <p style={{ fontSize: 12, color: "var(--text-sub)", margin: "0 0 6px" }}>최근 수업 기록</p>
@@ -295,8 +350,8 @@ function GroupEnrollmentCard({
   const remain = cycle.total_count - cycle.used_count;
 
   return (
-    <div className="panel">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+    <div className="panel enrollment-card">
+      <div className="enrollment-card-header">
         <div>
           <span className="badge type-group">단체 {enrollment.classes?.name ?? "-"}</span>
           {isPackage && <PackageTag />}
@@ -463,41 +518,40 @@ export default function MemberDetailPage() {
   }
 
   return (
-    <div>
+    <div className="app-page member-detail-page">
       <button
-        className="secondary"
-        style={{ width: "auto", padding: "6px 12px", fontSize: 12, marginBottom: 14 }}
+        className="member-back-button"
         onClick={() => router.push("/members")}
       >
         ← 회원 목록
       </button>
 
-      <div className="panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 className="page-title" style={{ marginBottom: 4 }}>
-            {member.name}
-          </h1>
-          <p style={{ margin: 0, color: "var(--text-sub)", fontSize: 13 }}>{member.phone}</p>
+      <header className="app-page-header member-detail-header">
+        <div className="member-detail-identity">
+          <div>
+            <h1>{member.name}</h1>
+            <p>{member.phone}</p>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="member-detail-actions">
           <button
             className="secondary"
-            style={{ width: "auto", padding: "8px 14px" }}
             onClick={() => setEditMemberOpen(true)}
             disabled={deletingMember}
           >
             회원정보 수정
           </button>
           <button
-            className="secondary"
-            style={{ width: "auto", padding: "8px 14px", color: "var(--danger)" }}
+            className="secondary member-delete-button"
             onClick={handleDeleteMember}
             disabled={deletingMember}
           >
             {deletingMember ? "삭제 중..." : "회원 삭제"}
           </button>
         </div>
-      </div>
+      </header>
+
+      <MemberMemo memberId={member.id} />
 
       {member.enrollments.length === 0 ? (
         <p className="state-message">등록된 수강권이 없습니다.</p>
@@ -528,7 +582,7 @@ export default function MemberDetailPage() {
         })
       )}
 
-      <button style={{ width: "auto", padding: "9px 16px" }} onClick={() => setAddEnrollmentOpen(true)}>
+      <button className="add-enrollment-button" onClick={() => setAddEnrollmentOpen(true)}>
         + 수강권/반 추가
       </button>
 

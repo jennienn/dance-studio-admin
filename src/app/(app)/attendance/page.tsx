@@ -3,10 +3,41 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api-client";
+import { koreaDateString } from "@/lib/business-rules";
 
 interface ClassItem {
   id: number;
   name: string;
+  member_count: number;
+}
+
+interface CalendarCell { date: string; day: number }
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const monthOf = (date: string) => date.slice(0, 7);
+
+function shiftMonth(month: string, amount: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const shifted = new Date(year, monthNumber - 1 + amount, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function calendarCells(month: string): Array<CalendarCell | null> {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstWeekday = new Date(year, monthNumber - 1, 1).getDay();
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const cells: Array<CalendarCell | null> = Array.from({ length: firstWeekday }, () => null);
+  for (let day = 1; day <= lastDay; day += 1) {
+    cells.push({ date: `${month}-${String(day).padStart(2, "0")}`, day });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function selectedDateLabel(date: string) {
+  const [, month, day] = date.split("-").map(Number);
+  const weekday = WEEKDAYS[new Date(`${date}T12:00:00+09:00`).getDay()];
+  return `${month}월 ${day}일 ${weekday}요일`;
 }
 
 interface ClassSchedule {
@@ -29,10 +60,13 @@ interface AttendanceItem {
 }
 
 export default function AttendancePage() {
+  const today = koreaDateString();
   const loadRequestId = useRef(0);
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [className, setClassName] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
+  const [visibleMonth, setVisibleMonth] = useState(monthOf(today));
+  const [dateCounts, setDateCounts] = useState<Record<string, number>>({});
 
   const [todaySchedule, setTodaySchedule] = useState<ClassSchedule | null>(null);
   const [items, setItems] = useState<AttendanceItem[]>([]);
@@ -51,6 +85,15 @@ export default function AttendancePage() {
       })
       .catch(() => setClasses([]));
   }, []);
+
+  useEffect(() => {
+    if (!className) return;
+    apiFetch<{ dateCounts: Record<string, number> }>(
+      `/api/attendance?className=${encodeURIComponent(className)}&month=${visibleMonth}`
+    )
+      .then((result) => setDateCounts(result.dateCounts))
+      .catch(() => setDateCounts({}));
+  }, [className, visibleMonth]);
 
   useEffect(() => {
     if (!toast) return;
@@ -134,31 +177,81 @@ export default function AttendancePage() {
   }
 
   const allChecked = items.length > 0 && items.every((i) => checked.has(i.cycleId));
+  const selectedClass = classes.find((classItem) => classItem.name === className);
+  const [calendarYear, calendarMonth] = visibleMonth.split("-").map(Number);
+  const cells = calendarCells(visibleMonth);
+
+  function moveMonth(amount: number) {
+    const nextMonth = shiftMonth(visibleMonth, amount);
+    setVisibleMonth(nextMonth);
+    setDate(`${nextMonth}-01`);
+  }
 
   return (
-    <div>
-      <h1 className="page-title">단체 출석</h1>
+    <div className="app-page">
+      <header className="app-page-header">
+        <div>
+          <h1>단체 출석</h1>
+          <p>반별 수업 일정과 회원 출석을 확인하고 관리하세요.</p>
+        </div>
+      </header>
 
-      <div className="panel">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <select value={className} onChange={(e) => setClassName(e.target.value)} style={{ width: "auto" }}>
-            {classes.map((c) => (
-              <option key={c.id} value={c.name}>
-                {c.name}
-              </option>
+      <section className="schedule-calendar-card attendance-calendar" aria-label={`${calendarYear}년 ${calendarMonth}월 단체 출석`}>
+        <div className="schedule-calendar-toolbar attendance-calendar-toolbar">
+          <div className="class-segmented-control" aria-label="반 선택">
+            {classes.map((classItem) => (
+              <button
+                key={classItem.id}
+                type="button"
+                className={`class-segment-option${className === classItem.name ? " selected" : ""}`}
+                aria-pressed={className === classItem.name}
+                onClick={() => setClassName(classItem.name)}
+              >
+                {classItem.name}
+              </button>
             ))}
-          </select>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: "auto" }} />
+          </div>
+          <div className="schedule-month-nav">
+            <button type="button" className="secondary calendar-nav-button" onClick={() => moveMonth(-1)} aria-label="이전 달">‹</button>
+            <h2>{calendarYear}년 {calendarMonth}월</h2>
+            <button type="button" className="secondary calendar-nav-button" onClick={() => moveMonth(1)} aria-label="다음 달">›</button>
+          </div>
+          <button type="button" className="secondary today-button" onClick={() => { setVisibleMonth(monthOf(today)); setDate(today); }}>오늘</button>
+        </div>
+        <div className="schedule-weekdays" aria-hidden="true">
+          {WEEKDAYS.map((weekday) => <span key={weekday}>{weekday}</span>)}
+        </div>
+        <div className="schedule-calendar-grid">
+          {cells.map((cell, index) => cell ? (
+            <button
+              type="button"
+              key={cell.date}
+              aria-label={cell.date}
+              className={`schedule-day${date === cell.date ? " selected" : ""}${today === cell.date ? " today" : ""}`}
+              aria-pressed={date === cell.date}
+              onClick={() => setDate(cell.date)}
+            >
+              <span className="schedule-day-number">{cell.day}</span>
+              {(dateCounts[cell.date] ?? 0) > 0 && <span className="attendance-day-count">{dateCounts[cell.date]}명</span>}
+            </button>
+          ) : <span className="schedule-calendar-empty" key={`empty-${index}`} />)}
+        </div>
+      </section>
+
+      <div className="panel attendance-list-panel">
+        <div className="attendance-list-heading">
+          <div>
+            <h2>{selectedDateLabel(date)}</h2>
+            <p>{className || "반 미선택"} · 수강 대상 {todaySchedule ? items.length : 0}명</p>
+          </div>
+          <span>전체 수강 회원 {selectedClass?.member_count ?? 0}명</span>
           {items.length > 0 && (
-            <label className="checkbox-inline" style={{ marginLeft: "auto" }}>
+            <label className="checkbox-inline">
               <input type="checkbox" checked={allChecked} onChange={toggleAll} />
               전체 선택
             </label>
           )}
         </div>
-      </div>
-
-      <div className="panel">
         {loading ? (
           <p className="state-message">불러오는 중...</p>
         ) : error ? (
@@ -187,15 +280,12 @@ export default function AttendancePage() {
             ))}
           </ul>
         )}
+        <div className="attendance-list-footer">
+          <button onClick={handleSubmit} disabled={items.length === 0 || submitting}>
+            {submitting ? "처리 중..." : `선택한 ${checked.size}명 출석 처리`}
+          </button>
+        </div>
       </div>
-
-      <button
-        style={{ width: "auto", padding: "10px 18px" }}
-        onClick={handleSubmit}
-        disabled={items.length === 0 || submitting}
-      >
-        {submitting ? "처리 중..." : `선택한 ${checked.size}명 출석 처리`}
-      </button>
 
       {toast && <div className="toast">{toast}</div>}
     </div>

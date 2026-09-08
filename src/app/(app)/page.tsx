@@ -152,16 +152,19 @@ export default function HomePage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div>
-      <div className="due-heading">
-        <span className="due-label">결제 확인 필요</span>
-        <span className="due-value">
-          <span className="due-count">{unpaidCount ?? "-"}</span>
-          <span className="due-unit">명</span>
-        </span>
-      </div>
+    <div className="app-page">
+      <header className="app-page-header">
+        <div>
+          <h1>결제 확인</h1>
+          <p>결제가 필요한 회원을 확인하고 관리하세요.</p>
+        </div>
+        <div className="page-header-stat" aria-label={`결제 확인 필요 회원 ${unpaidCount ?? "-"}명`}>
+          <strong>{unpaidCount ?? "-"}</strong>
+          <span>확인 필요</span>
+        </div>
+      </header>
 
-      <div className="filter-tabs" style={{ marginBottom: 16 }}>
+      <div className="filter-tabs page-filter-tabs">
         {(["전체", "개인", "단체"] as TypeFilter[]).map((t) => (
           <button
             key={t}
